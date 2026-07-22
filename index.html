@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>小卡共享</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{--purple:#6d28d9;--pl:#8b5cf6;--bg:#f5f0eb;--card:#fff;--text:#333;--muted:#888;--border:#e8e0d8;--danger:#dc2626;--r:12px;--rs:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);max-width:480px;margin:0 auto;min-height:100vh}
+.nav{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.nav h1{font-size:16px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.nav-actions{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:center}
+.nav-actions::-webkit-scrollbar{display:none}
+.nav-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 10px;border-radius:14px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.nav-btn.active{background:rgba(255,255,255,.35);font-weight:600}
+.nav-sep{width:1px;height:16px;background:rgba(255,255,255,.25);flex-shrink:0;margin:0 2px}
+.main{padding:12px 12px 16px}
+.view-toggle{display:flex;background:var(--border);border-radius:10px;padding:3px;margin-bottom:12px}
+.view-toggle button{flex:1;border:none;background:none;padding:10px;border-radius:8px;font-size:14px;cursor:pointer;color:#666}
+.view-toggle button.active{background:#fff;color:var(--purple);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.card-item{background:var(--card);border-radius:var(--r);padding:12px;margin-bottom:8px;display:flex;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);position:relative;cursor:pointer}
+.card-item:active{background:#faf5ff}
+.card-thumb{width:72px;height:72px;border-radius:var(--rs);flex-shrink:0;overflow:hidden;background:#f0ebe3;display:flex;align-items:center;justify-content:center}
+.card-thumb img{width:100%;height:100%;object-fit:cover}
+.card-thumb .emoji{font-size:30px}
+.card-body{flex:1;min-width:0}
+.card-body h4{font-size:15px;font-weight:600;margin-bottom:2px}
+.card-body .meta{font-size:12px;color:var(--muted);line-height:1.5}
+.card-body .price-line{font-size:13px;font-weight:600;color:#e74c3c;margin-top:2px}
+.card-delete{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#999;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.card-delete.confirming{background:#fee2e2;color:var(--danger)}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px;margin-bottom:2px}
+.tag-member{background:#ede9fe;color:var(--purple)}
+.tag-group{background:#dbeafe;color:#2563eb}
+.tag-type{background:#fce7f3;color:#be185d}
+.tag-series{background:#d1fae5;color:#065f46}
+.tag-status{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;margin-left:4px}
+.s-shipping{background:#fef3c7;color:#d97706}
+.s-arrived{background:#d1fae5;color:#065f46}
+.s-waiting{background:#fee2e2;color:var(--danger)}
+.group-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--card);border-radius:var(--r);margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
+.group-hd:active{background:#faf5ff}
+.group-hd .gi{flex:1}
+.group-hd .gn{font-size:15px;font-weight:600}
+.group-hd .gm{font-size:12px;color:var(--muted)}
+.group-hd .arrow{font-size:14px;color:var(--pl);min-width:20px;text-align:right;transition:transform .2s}
+.group-hd.collapsed .arrow{transform:rotate(-90deg)}
+.group-cards{overflow:hidden;transition:max-height .3s}
+.group-cards.collapsed{max-height:0!important}
+.group-cards .card-item{border-left:3px solid #ede9fe;border-radius:0 var(--r) var(--r) 0}
+.jump-nav{display:flex;gap:6px;overflow-x:auto;padding:0 2px 10px;-webkit-overflow-scrolling:touch}
+.jump-nav::-webkit-scrollbar{display:none}
+.jump-chip{flex-shrink:0;padding:7px 14px;border-radius:16px;font-size:12px;font-weight:600;background:var(--card);color:#666;border:none;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.jump-chip:active{background:#ede9fe;color:var(--purple)}
+.jump-chip .badge{display:inline-block;background:var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px}
+.series-block{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.series-block .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.series-block .sh h4{font-size:15px;font-weight:600}
+.series-block .sh .sc{font-size:11px;color:var(--muted)}
+.series-thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.series-thumbs::-webkit-scrollbar{height:4px}
+.series-thumbs::-webkit-scrollbar-thumb{background:#e0d8cc;border-radius:2px}
+.series-thumb-item{flex-shrink:0;text-align:center;width:72px;cursor:pointer}
+.series-thumb-img{width:72px;height:72px;border-radius:var(--rs);background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:4px;overflow:hidden}
+.series-thumb-img img{width:100%;height:100%;object-fit:cover;border-radius:var(--rs)}
+.series-thumb-name{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px}
+.stats-bar{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.stat-item{flex:1}
+.stat-num{font-size:20px;font-weight:700;color:var(--purple)}
+.stat-label{font-size:11px;color:var(--muted);margin-top:2px}
+.stat-divider{width:1px;background:#eee}
+.manage-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:var(--card);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.manage-bar .count{font-size:12px;color:var(--muted)}
+.manage-actions{display:flex;gap:6px}
+.manage-actions button{padding:6px 12px;border-radius:var(--rs);font-size:12px;border:none;cursor:pointer}
+.btn-add{background:#ede9fe;color:var(--purple);font-weight:600}
+.user-bar{background:var(--card);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
+.user-bar .av{width:36px;height:36px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-size:18px}
+.user-bar .uname{font-size:14px;font-weight:600}
+.user-bar .uinfo{font-size:11px;color:var(--muted)}
+.badge-founder{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;font-size:10px;padding:3px 8px;border-radius:8px;margin-left:6px}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal-panel{background:var(--card);width:100%;max-width:480px;max-height:88vh;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0ebe3;flex-shrink:0}
+.modal-hd h3{font-size:17px}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:#999}
+.modal-body{padding:16px 20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:12px;font-weight:600;color:#666;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--rs);font-size:14px;background:#fafafa}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--pl);background:#fff}
+.form-row{display:flex;gap:8px}
+.form-row .form-group{flex:1}
+.btn-main{width:100%;padding:14px;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
+.btn-main:active{opacity:.9}
+.btn-sm{padding:6px 14px;border-radius:var(--rs);font-size:12px;border:none;cursor:pointer}
+.upload-area{width:100%;min-height:140px;border:2px dashed #d4c5f9;border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;background:#faf5ff;overflow:hidden}
+.upload-placeholder{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px;font-size:13px;color:var(--muted)}
+.upload-placeholder .big-icon{font-size:36px}
+.upload-preview{width:100%;max-height:220px;object-fit:contain;border-radius:var(--rs)}
+.upload-actions{display:flex;gap:8px;margin-top:6px}
+.upload-actions button{flex:1;padding:10px 8px;border:1px solid var(--border);border-radius:var(--rs);background:var(--card);font-size:13px;cursor:pointer;text-align:center}
+.img-lightbox{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.92);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.img-lightbox img{max-width:92%;max-height:75vh;border-radius:12px;object-fit:contain}
+.img-lightbox .cap{color:#ccc;margin-top:12px;font-size:14px;padding:0 16px;text-align:center}
+.img-lightbox .lb-close{position:absolute;top:16px;right:16px;color:#fff;font-size:30px;cursor:pointer;background:none;border:none}
+.user-card{background:#fafafa;border-radius:var(--r);padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.user-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;background:#f0ebe3}
+.user-info{flex:1}
+.the-role{font-size:12px;padding:3px 10px;border-radius:10px;font-weight:600}
+.role-founder{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff}
+.role-member{background:#f0ebe3;color:#666}
+.role-actions{display:flex;gap:6px}
+.role-btn{padding:6px 12px;border-radius:var(--rs);font-size:12px;border:none;cursor:pointer}
+.btn-promote{background:#ede9fe;color:var(--purple)}
+.btn-remove{background:#fee2e2;color:var(--danger)}
+.invite-box{background:#faf5ff;border:2px dashed #c4b5fd;border-radius:var(--r);padding:20px;text-align:center;margin-bottom:16px}
+.invite-code{font-size:32px;font-weight:800;letter-spacing:4px;color:var(--purple);margin:8px 0;user-select:all}
+.invite-hint{font-size:11px;color:var(--muted)}
+.copy-btn{width:100%;padding:10px;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:6px}
+.toggle-all{font-size:12px;color:var(--pl);cursor:pointer;display:inline-block;margin-bottom:8px}
+.hidden{display:none!important}
+.toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:400;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+.spinner{text-align:center;padding:40px;color:var(--muted)}
+.spinner:after{content:'';display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.label-loading{padding:10px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <h1>🃏 小卡共享</h1>
+  <div class="nav-actions" id="navRight">
+    <button class="nav-btn" id="nav-explore" onclick="switchTab('explore')">卡库</button>
+    <button class="nav-btn active" id="nav-my" onclick="switchTab('my')">卡册</button>
+    <span class="nav-sep"></span>
+    <span id="navUsers"></span>
+    <button class="nav-btn" onclick="openProfilePanel()" style="background:rgba(255,255,255,.15);padding:5px 8px">⚙️</button>
+  </div>
+</nav>
+
+<div class="main" id="mainContent"><div class="spinner"></div></div>
+
+<div class="img-lightbox hidden" id="lightbox" onclick="closeLightbox()">
+  <button class="lb-close">✕</button>
+  <img id="lbImg" src="" alt="">
+  <div class="cap" id="lbCaption"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay hidden" id="modal"><div class="modal-panel"><div class="modal-hd"><h3 id="modalTitle"></h3><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body" id="modalBody"></div></div></div>
+
+<input type="file" id="hiddenFileInput" accept="image/*" capture="environment" class="hidden">
+
+<script>
+// ═══════════════════ Supabase 连接 ═══════════════════
+var SUPABASE_URL='https://neolxiocucigqrrgueim.supabase.co';
+var SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ═══════════════════ 数据常量 ═══════════════════
+var MEMBER_EMOJIS = {'崔胜哲':'👑','尹净汉':'😇','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🐺','李知勋':'🎸','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔韩率':'🦅','李灿':'🦦','赵雨凡':'🐣','金主训':'🦊','马丁':'🐱','严成玹':'🐶','安乾镐':'🐰'};
+var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
+var STATUSES=['未发货','在途','已到手','可出','待售'];
+var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
+
+// ═══════════════════ 全局状态 ═══════════════════
+var currentTab='my', currentView='member';
+var groups=[], members=[], users=[], cards=[], records=[];
+var currentUser=null;
+var _formImgData='';
+
+function getEmoji(name){ if(!name) return '👥'; var n=name.split('(')[0]; return MEMBER_EMOJIS[n]||name[0] }
+
+// ═══════════════════ 数据加载 ═══════════════════
+async function loadData(){
+  var results=await Promise.all([
+    sb.from('groups').select('*').order('sort_order'),
+    sb.from('members').select('*').order('sort_order'),
+    sb.from('users').select('*'),
+    sb.from('cards').select('*').order('created_at',{ascending:false}),
+    sb.from('records').select('*').order('created_at',{ascending:false}),
+    sb.from('invite_codes').select('*').limit(1).maybeSingle()
+  ]);
+  groups=results[0].data||[];
+  members=results[1].data||[];
+  users=results[2].data||[];
+  cards=results[3].data||[];
+  records=results[4].data||[];
+  var inviteData=results[5].data;
+  if(!inviteData){
+    var code='KARD-'+Math.random().toString(36).substring(2,6).toUpperCase();
+    await sb.from('invite_codes').insert({code:code,used:false});
+    window._inviteCode=code;
+  } else { window._inviteCode=inviteData.code }
+
+  // 恢复当前用户
+  var uid=localStorage.getItem('kcard_user_id');
+  if(uid) currentUser=users.find(u=>u.id===uid)||null;
+  if(!currentUser&&users.length>0&&users[0].role==='founder'){ currentUser=users[0]; localStorage.setItem('kcard_user_id',currentUser.id) }
+  if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
+}
+
+async function refreshCurrentData(){
+  var r1=await sb.from('users').select('*'); users=r1.data||[];
+  var r2=await sb.from('cards').select('*').order('created_at',{ascending:false}); cards=r2.data||[];
+  var r3=await sb.from('records').select('*').order('created_at',{ascending:false}); records=r3.data||[];
+  if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
+  render();
+}
+
+function isFounder(u){ return u&&u.role==='founder' }
+
+// ═══════════════════ 渲染 ═══════════════════
+function switchTab(tab){
+  currentTab=tab; currentView='member';
+  document.getElementById('nav-explore').classList.toggle('active',tab==='explore');
+  document.getElementById('nav-my').classList.toggle('active',tab==='my');
+  render();
+}
+function switchView(view){ currentView=view; render() }
+
+function renderNavUsers(){
+  var html='';
+  if(users.length){
+    html=users.map(u=>`<button class="nav-btn${u.id===currentUser?.id?' active':''}" onclick="switchToUser('${u.id}')">${u.name}</button>`).join('');
+  }
+  document.getElementById('navUsers').innerHTML=html;
+}
+function render(){
+  renderNavUsers();
+  var html='';
+  if(!currentUser) html+=`<div class="user-bar" onclick="openLoginPanel()"><div class="av">👤</div><div style="flex:1"><div class="uname">点击登录 / 加入</div></div></div>`;
+  if(currentTab==='explore') html+=renderExplore();
+  else html+=renderMyCards();
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function renderExplore(){
+  var founder=isFounder(currentUser);
+  var allSeries=[...new Set(cards.map(c=>c.series).filter(Boolean))];
+  var html=`<div class="manage-bar"><span class="count">📚 ${groups.length}个团体 · ${cards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
+  html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
+  if(!cards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
+  if(currentView==='member') html+=renderByMember(cards,founder);
+  else html+=renderBySeries(cards);
+  return html;
+}
+
+function renderByMember(cardList,founder){
+  var byMember={};
+  cardList.forEach(c=>{ var k=c.group_id+'|'+c.member_id; if(!byMember[k]) byMember[k]={gid:c.group_id,mid:c.member_id,list:[]}; byMember[k].list.push(c) });
+  var sorted=Object.values(byMember).sort((a,b)=>{
+    var ga=groups.findIndex(g=>g.id===a.gid), gb=groups.findIndex(g=>g.id===b.gid);
+    if(ga!==gb) return ga-gb;
+    var ma=members.findIndex(m=>m.id===a.mid), mb=members.findIndex(m=>m.id===b.mid);
+    return ma-mb;
+  });
+  var jumpHtml='<div class="jump-nav">';
+  sorted.forEach(g=>{ var m=members.find(x=>x.id===g.mid); var mn=m?m.name:g.mid; jumpHtml+=`<button class="jump-chip" onclick="scrollTo('mem_${g.gid}_${g.mid}')">${getEmoji(mn)} ${mn}<span class="badge">${g.list.length}</span></button>` });
+  jumpHtml+='</div>';
+  var html=jumpHtml;
+  sorted.forEach(g=>{
+    var m=members.find(x=>x.id===g.mid); var mn=m?m.name:g.mid;
+    var gname=groups.find(x=>x.id===g.gid); var gn=gname?gname.name:g.gid;
+    html+=`<div class="group-hd" onclick="toggleGroup(this,'cards_${g.gid}_${g.mid}')" id="mem_${g.gid}_${g.mid}"><div class="gi"><div class="gn">${getEmoji(mn)} ${mn} · ${gn}</div><div class="gm">${g.list.length}张卡片</div></div><div class="arrow">▼</div></div><div class="group-cards" id="cards_${g.gid}_${g.mid}">`;
+    g.list.forEach(c=>{ html+=buildCardItem(c,founder,false) });
+    html+=`</div>`;
+  });
+  return html;
+}
+
+function renderBySeries(cardList){
+  var bySeries={};
+  cardList.forEach(c=>{ var k=c.series||'未分类'; if(!bySeries[k]) bySeries[k]={name:k,list:[]}; bySeries[k].list.push(c) });
+  var sorted=Object.entries(bySeries).sort((a,b)=>b[1].list.length-a[1].list.length);
+  var jumpHtml='<div class="jump-nav">';
+  sorted.forEach(([k,v])=>{ jumpHtml+=`<button class="jump-chip" onclick="scrollTo('ser_${k}')">${k}<span class="badge">${v.list.length}</span></button>` });
+  jumpHtml+='</div>';
+  var html=jumpHtml;
+  sorted.forEach(([sname,data])=>{
+    var gid=data.list[0].group_id; var gn=groups.find(g=>g.id===gid);
+    html+=`<div class="series-block" id="ser_${sname}"><div class="sh"><h4>${sname}</h4><span class="sc">${data.list.length}张 · ${gn?gn.name:''}</span></div><div class="series-thumbs">`;
+    data.list.sort((a,b)=>{
+      var ma=members.findIndex(m=>m.id===a.member_id), mb=members.findIndex(m=>m.id===b.member_id);
+      return ma-mb;
+    });
+    var shown=0, maxShow=20;
+    data.list.forEach(c=>{
+      if(shown>=maxShow) return; shown++;
+      var m=members.find(x=>x.id===c.member_id); var mn=m?m.name:'';
+      html+=`<div class="series-thumb-item" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')"><div class="series-thumb-img">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span>${getEmoji(mn)}</span>`}</div><div class="series-thumb-name">${mn}</div></div>`;
+    });
+    if(data.list.length>maxShow) html+=`<div class="series-thumb-item" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">+${data.list.length-maxShow}张</div>`;
+    html+=`</div></div>`;
+  });
+  return html;
+}
+
+function buildCardItem(c, founder, isRecord){
+  var m=members.find(x=>x.id===c.member_id); var mn=m?m.name:''; var en=getEmoji(mn);
+  var cidForEdit=c.cardId||c.id||c.recordId||'';
+  var html=`<div class="card-item" data-card-id="${cidForEdit}"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span class="emoji">${en}</span>`}</div><div class="card-body"><h4>${c.name}</h4><div class="meta">${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span>${isRecord?`<span class="tag tag-member">${mn}</span>`:''}</div>`;
+  if(isRecord) html+=`<div class="price-line">¥${c.price} <span class="tag tag-status ${STATUS_CLASS[c.status]}">${c.status}</span></div>`;
+  html+=`</div>`;
+  if(founder||isRecord) html+=`<button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'${isRecord?'record':'card'}','${c.id}')">×</button>`;
+  html+=`</div>`;
+  return html;
+}
+
+// ═══════════════════ 我的卡册 ═══════════════════
+var statusFilter='';
+function renderMyCards(){
+  if(!currentUser) return '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">👤</div><p>请先登录</p></div>';
+  var myRecs=records.filter(r=>r.user_id===currentUser.id);
+  if(statusFilter) myRecs=myRecs.filter(r=>r.status===statusFilter);
+  var total=myRecs.length, totalPrice=myRecs.reduce((s,r)=>s+(r.price||0),0);
+  var inTr=myRecs.filter(r=>r.status==='在途'||r.status==='未发货').length;
+  var arrived=myRecs.filter(r=>r.status==='已到手').length;
+  var out=myRecs.filter(r=>r.status==='可出'||r.status==='待售').length;
+  var filterActive=statusFilter?' active':'';
+  var filterHtml=STATUSES.map(s=>`<button class="nav-btn${statusFilter===s?filterActive:''}" onclick="statusFilter=statusFilter==='${s}'?'':'${s}';render();" style="color:var(--text);background:${statusFilter===s?'var(--purple)':'#f3f4f6'};opacity:${statusFilter&&statusFilter!==s?'0.4':'1'}">${s}</button>`).join('');
+  var html=`<div class="manage-bar"><span class="count">💝 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button></div></div><div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
+  if(!myRecs.length) return html+'<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">💝</div><p>卡册还是空的</p><p>点上面的按钮录入第一张卡吧</p></div>';
+
+  if(isCortisUser()){
+    var notIn=total-arrived;
+    html+=`<div class="stats-bar"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${notIn}</div><div class="stat-label">未在手</div></div></div>`;
+    return html+renderMyCortisCards(myRecs);
+  }
+
+  html+=`<div class="stats-bar"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${inTr}</div><div class="stat-label">在途</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div></div>`;
+  html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按卡</button></div>`;
+  if(currentView==='member') html+=renderMyByMember(myRecs);
+  else html+=renderMyByCard(myRecs);
+  return html;
+}
+
+function renderMyByMember(myRecs){
+  // 关联card数据
+  myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
+
+  var byMember={};
+  myRecs.forEach(r=>{ var k=(r._card.group_id||'')+'|'+(r._card.member_id||''); if(!byMember[k]) byMember[k]={gid:r._card.group_id,mid:r._card.member_id,list:[]}; byMember[k].list.push(r) });
+  var sorted=Object.values(byMember).sort((a,b)=>{
+    var ga=groups.findIndex(g=>g.id===a.gid), gb=groups.findIndex(g=>g.id===b.gid);
+    if(ga!==gb) return ga-gb;
+    var ma=members.findIndex(m=>m.id===a.mid), mb=members.findIndex(m=>m.id===b.mid);
+    return ma-mb;
+  });
+  var jumpHtml='<a class="toggle-all" onclick="toggleAll(\'myM\')">📂 全部展开/折叠</a><div class="jump-nav">';
+  sorted.forEach(g=>{ var m=members.find(x=>x.id===g.mid); jumpHtml+=`<button class="jump-chip" onclick="scrollTo('mym_${g.gid}_${g.mid}')">${getEmoji(m?m.name:'')} ${m?m.name:''}<span class="badge">${g.list.length}</span></button>` });
+  jumpHtml+='</div>';
+  var html='<div id="myM">'+jumpHtml;
+  sorted.forEach(g=>{
+    var m=members.find(x=>x.id===g.mid); var mn=m?m.name:'';
+    var gname=groups.find(x=>x.id===g.gid); var gn=gname?gname.name:'';
+    var tp=g.list.reduce((s,r)=>s+(r.price||0),0);
+    var itr=g.list.filter(r=>r.status==='在途'||r.status==='未发货').length;
+    html+=`<div class="group-hd" onclick="toggleGroup(this,'mycards_${g.gid}_${g.mid}')" id="mym_${g.gid}_${g.mid}"><div class="gi"><div class="gn">${getEmoji(mn)} ${mn} · ${gn}</div><div class="gm">${g.list.length}张 · ¥${tp} · ${itr}张在途</div></div><div class="arrow">▼</div></div><div class="group-cards" id="mycards_${g.gid}_${g.mid}">`;
+    g.list.forEach(r=>{
+      var c=r._card; c.price=r.price; c.status=r.status; c.id=r.id; c.recordId=r.id; c.cardId=r.card_id;
+      html+=buildCardItem(c,true,true);
+    });
+    html+=`</div>`;
+  });
+  html+='</div>'; return html;
+}
+
+function renderMyByCard(myRecs){
+  myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
+  var byCard={};
+  myRecs.forEach(r=>{ var k=r._card.name||'未知卡'; if(!byCard[k]) byCard[k]={name:k,list:[]}; byCard[k].list.push(r) });
+  var sorted=Object.entries(byCard).sort((a,b)=>b[1].list.length-a[1].list.length);
+  var jumpHtml='<a class="toggle-all" onclick="toggleAll(\'myS\')">📂 全部展开/折叠</a><div class="jump-nav">';
+  sorted.forEach(([k,v])=>{ jumpHtml+=`<button class="jump-chip" onclick="scrollTo('mys_${k}')">${k}<span class="badge">${v.list.length}</span></button>` });
+  jumpHtml+='</div>';
+  var html='<div id="myS">'+jumpHtml;
+  sorted.forEach(([name,data])=>{
+    var tp=data.list.reduce((s,r)=>s+(r.price||0),0);
+    html+=`<div class="group-hd" onclick="toggleGroup(this,'myscards_${name}')" id="mys_${name}"><div class="gi"><div class="gn">${name}</div><div class="gm">${data.list.length}张 · ¥${tp}</div></div><div class="arrow">▼</div></div><div class="group-cards" id="myscards_${name}">`;
+    data.list.forEach(r=>{
+      var c=r._card; c.price=r.price; c.status=r.status; c.id=r.id; c.cardId=r.card_id;
+      html+=buildCardItem(c,true,true);
+    });
+    html+=`</div>`;
+  });
+  html+='</div>'; return html;
+}
+
+function editCortisRecord(rid,price,status,cname){
+  event.stopPropagation();
+  var rec=records.find(r=>r.id===rid);
+  var cardId=rec?rec.card_id:null;
+  var card=cardId?cards.find(c=>c.id===cardId):null;
+  var imgPreview='';
+  if(card&&card.image_url){
+    imgPreview=`<div style="text-align:center;margin-bottom:8px"><img src="${card.image_url}" style="max-width:100%;max-height:180px;border-radius:8px"><div style="font-size:11px;color:var(--muted);margin-top:4px">当前卡面</div></div>`;
+  }
+  var editCardBtn='';
+  if(isFounder(currentUser)&&cardId){
+    editCardBtn=`<button class="btn-main" style="background:var(--pl);margin-top:4px" onclick="event.stopPropagation();closeModal();openEditCard(cards.find(c=>c.id==='${cardId}'))">📸 更换卡面 / 编辑卡片</button>`;
+  }
+  var html=imgPreview+`<div class="form-group"><label>💰 价格（元）</label><input type="number" id="editPrice" value="${price}" min="0"></div><div class="form-group"><label>是否在手</label><select id="editStatus"><option value="已到手"${status==='已到手'?' selected':''}>✅ 已到手</option><option value="未发货"${status==='未发货'?' selected':''}>📦 未在手</option></select></div><button class="btn-main" onclick="saveEditCortisRecord('${rid}')">💾 保存</button>${editCardBtn}`;
+  openModal('✏️ 编辑 | '+cname,html);
+}
+async function saveEditCortisRecord(rid){
+  var price=parseFloat(document.getElementById('editPrice').value)||0;
+  var status=document.getElementById('editStatus').value;
+  await sb.from('records').update({price:price,status:status}).eq('id',rid);
+  closeModal(); showToast('💾 已保存');
+  await refreshCurrentData();
+}
+function renderMyCortisCards(myRecs){
+  myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
+  var sorted=myRecs.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  var html='';
+  sorted.forEach(r=>{
+    var c=r._card; var isArrived=r.status==='已到手';
+    var en=getEmoji(''); var img=c.image_url||'';
+    var memberName=members.find(m=>m.id===c.member_id); var mn=memberName?memberName.name:'';
+    html+=`<div class="card-item" onclick="editCortisRecord('${r.id}','${r.price}','${r.status}','${(c.name||'').replace(/'/g,"\\'")}')"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${img}','${mn}','${c.name||''}','')">${img?`<img src="${img}" alt="">`:`<span class="emoji">${getEmoji(mn)}</span>`}</div><div class="card-body"><h4>${c.name||'未命名'}</h4><div class="meta"><span class="tag tag-member">${mn}</span></div><div class="price-line">¥${r.price} <span class="tag tag-status ${isArrived?'s-arrived':'s-waiting'}">${r.status}</span></div></div><button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'record','${r.id}')">×</button></div>`;
+  });
+  return html;
+}
+
+// ═══════════════════ 交互帮助 ═══════════════════
+function scrollTo(id){ var el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}) }
+function toggleGroup(hd,cardsId){ var c=document.getElementById(cardsId); if(!c) return; var col=c.classList.toggle('collapsed'); hd.classList.toggle('collapsed',col); hd.querySelector('.arrow').textContent=col?'▶':'▼' }
+function toggleAll(contId){ var ct=document.getElementById(contId); if(!ct) return; var hs=ct.querySelectorAll('.group-hd'); var any=false; hs.forEach(h=>{ if(!h.classList.contains('collapsed')) any=true }); hs.forEach(h=>{ var cid=h.getAttribute('onclick').match(/'([^']+)'/); if(!cid) return; var cc=document.getElementById(cid[1]); if(!cc) return; if(any){ cc.classList.add('collapsed'); h.classList.add('collapsed'); h.querySelector('.arrow').textContent='▶' } else { cc.classList.remove('collapsed'); h.classList.remove('collapsed'); h.querySelector('.arrow').textContent='▼' } }) }
+function openLightbox(img,member,cname,series){ document.getElementById('lbImg').src=img||''; document.getElementById('lbImg').style.display=img?'':'none'; document.getElementById('lbCaption').textContent=member+' · '+cname+(series?' ['+series+']':''); document.getElementById('lightbox').classList.remove('hidden') }
+function closeLightbox(){ document.getElementById('lightbox').classList.add('hidden') }
+function showToast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show')},2000) }
+function openModal(title,body){ document.getElementById('modalTitle').textContent=title; document.getElementById('modalBody').innerHTML=body; document.getElementById('modal').classList.remove('hidden') }
+function closeModal(){ document.getElementById('modal').classList.add('hidden') }
+
+async function confirmDelete(event,type,id){
+  event.stopPropagation(); var btn=event.target;
+  if(btn.classList.contains('confirming')){
+    if(type==='card'){ await sb.from('cards').delete().eq('id',id); await sb.from('records').delete().eq('card_id',id); showToast('🗑️ 卡片已删除') }
+    else { await sb.from('records').delete().eq('id',id); showToast('🗑️ 记录已删除') }
+    await refreshCurrentData();
+  } else { btn.classList.add('confirming'); btn.textContent='确认?'; setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000) }
+}
+
+// ═══════════════════ 登录 ═══════════════════
+function openLoginPanel(){
+  var html=`<div class="form-group"><label>👤 昵称</label><input type="text" id="loginName" placeholder="你的昵称"></div><div class="form-group"><label>🔑 邀请码</label><input type="text" id="loginCode" placeholder="输入邀请码"></div><div style="font-size:11px;color:var(--muted);margin-bottom:8px">当前邀请码：<b>${window._inviteCode}</b></div><button class="btn-main" onclick="doLogin()">🚀 加入</button>${!users.length?`<div style="margin-top:12px"><button class="btn-main" style="background:linear-gradient(135deg,#fbbf24,#f59e0b)" onclick="doFirstLogin()">👑 创建为创始人</button></div>`:''}`;
+  openModal('👤 加入小卡共享',html);
+}
+
+async function doLogin(){
+  var name=document.getElementById('loginName').value.trim(), code=document.getElementById('loginCode').value.trim();
+  if(!name){ showToast('请输入昵称'); return }
+  if(code!==window._inviteCode){ showToast('❌ 邀请码不对'); return }
+  if(users.find(u=>u.name===name)){ showToast('⚠️ 昵称已存在'); return }
+  var id='u'+Date.now();
+  var r=await sb.from('users').insert({id:id,name:name,role:'member'});
+  if(r.error){ showToast('注册失败: '+r.error.message); return }
+  currentUser={id,name,role:'member'}; localStorage.setItem('kcard_user_id',id);
+  closeModal(); showToast('🎉 欢迎 '+name+'！');
+  await refreshCurrentData();
+}
+
+async function doFirstLogin(){
+  var name=document.getElementById('loginName').value.trim();
+  if(!name){ showToast('请输入昵称'); return }
+  var id='u'+Date.now();
+  await sb.from('users').insert({id:id,name:name,role:'founder'});
+  currentUser={id,name,role:'founder'}; localStorage.setItem('kcard_user_id',id);
+  closeModal(); showToast('👑 '+name+' 成为创始人！');
+  await refreshCurrentData();
+}
+
+// ═══════════════════ 人员管理 ═══════════════════
+function openProfilePanel(){
+  if(!currentUser){ openLoginPanel(); return }
+  var userList=users.map(u=>`<div class="user-card"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.id===currentUser.id?'(当前)':''} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div><div style="font-size:11px;color:var(--muted)">#${u.id} · ${records.filter(r=>r.user_id===u.id).length}张</div></div>${u.id===currentUser.id?'':u.role==='founder'&&isFounder(currentUser)?`<div class="role-actions"><button class="role-btn btn-remove" onclick="removeUser('${u.id}')">移除</button></div>`:u.role==='member'&&isFounder(currentUser)?`<div class="role-actions"><button class="role-btn btn-promote" onclick="promoteUser('${u.id}')">升创始人</button><button class="role-btn btn-remove" onclick="removeUser('${u.id}')">移除</button></div>`:''}</div>`).join('');
+  var html=`<div class="invite-box"><div style="font-size:13px;color:var(--muted)">📨 邀请码</div><div class="invite-code">${window._inviteCode}</div><div class="invite-hint">朋友输入此码即可加入</div><button class="copy-btn" onclick="navigator.clipboard.writeText('${window._inviteCode}');showToast('📋 已复制')">📋 复制邀请码</button></div><div style="font-weight:600;font-size:14px;margin-bottom:8px">👥 成员（${users.length}人）</div>${userList}<div style="margin-top:12px"><button class="btn-sm" onclick="switchUserMenu()">🔄 切换用户</button></div>`;
+  openModal('👥 人员管理',html);
+}
+
+async function promoteUser(uid){
+  var u=users.find(x=>x.id===uid);
+  if(!u) return;
+  await sb.from('users').update({role:'founder'}).eq('id',uid);
+  showToast('⬆️ '+u.name+' 已升级'); closeModal(); await refreshCurrentData();
+}
+async function removeUser(uid){
+  var u=users.find(x=>x.id===uid);
+  if(!u||!confirm('确定移除 '+u.name+'？')) return;
+  await sb.from('users').delete().eq('id',uid);
+  await sb.from('records').delete().eq('user_id',uid);
+  showToast('🗑️ 已移除'); closeModal(); await refreshCurrentData();
+}
+function switchUserMenu(){
+  var opts=users.map(u=>`<div class="user-card" style="cursor:pointer" onclick="switchToUser('${u.id}')"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div></div></div>`).join('');
+  document.getElementById('modalBody').innerHTML='<div style="font-weight:600;margin-bottom:8px">点击切换用户</div>'+opts;
+}
+function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); render() }
+function isCortisUser(){
+  if(!currentUser) return false;
+  var myRecs=records.filter(r=>r.user_id===currentUser.id);
+  if(!myRecs.length) return currentUser.name==='二丁';
+  var cid=myRecs[0].card_id;
+  var card=cards.find(c=>c.id===cid);
+  return card&&card.group_id==='cortis';
+}
+
+// ═══════════════════ 从卡册直接录入 ═══════════════════
+function openMyAddCard(){
+  if(!currentUser){ showToast('请先登录'); return }
+  if(isCortisUser()){ openMyAddCortisCard(); return }
+  var allSeries=[...new Set(cards.map(c=>c.series).filter(Boolean))];
+  var seriesOpts=allSeries.map(s=>`<option value="${s}">${s}</option>`).join('')+'<option value="__new__">+ 新系列…</option>';
+  var allTypes=[...new Set([...CARD_TYPES,...cards.map(c=>c.card_type).filter(Boolean)])];
+  var typeOpts=allTypes.map(t=>`<option value="${t}">${t}</option>`).join('')+'<option value="__new__">+ 新品类…</option>';
+  var grpOpts=`<option value="seventeen">SEVENTEEN（13人）</option>`;
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option>${members.filter(m=>m.group_id==='seventeen').map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
+  openModal('📝 录入新卡',html);
+  _formImgData='';
+  setTimeout(function(){ toggleNewField('series'); toggleNewField('type') },50);
+}
+
+function openMyAddCortisCard(){
+  var cortisMembers=members.filter(m=>m.group_id==='cortis');
+  var memOpts=cortisMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：stb专卡"></div><div class="form-group"><label>成员</label><select id="cardMember"><option value="">选成员（可选）</option>${memOpts}</select></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>是否在手</label><select id="recStatus"><option value="已到手">✅ 已到手</option><option value="未发货">📦 未在手</option></select></div><button class="btn-main" onclick="saveMyCortisCard()">✅ 录入卡册</button>`;
+  openModal('📝 录入新卡',html);
+  _formImgData='';
+}
+
+async function saveMyCard(){
+  var name=document.getElementById('cardName').value.trim();
+  var mid=document.getElementById('cardMember').value;
+  var serSel=document.getElementById('cardSeries');
+  var series=serSel.value==='__new__'?document.getElementById('newSeriesName').value.trim():serSel.value;
+  var typeSel=document.getElementById('cardType');
+  var type=typeSel.value==='__new__'?document.getElementById('newTypeName').value.trim():typeSel.value;
+  var price=parseFloat(document.getElementById('recPrice').value)||0;
+  var status=document.getElementById('recStatus').value;
+  var date=document.getElementById('recDate').value;
+  var note=document.getElementById('recNote').value.trim();
+  if(!name||!mid||!type){ showToast('请填写卡面信息'); return }
+  if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
+  if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
+  if(!price){ showToast('请填写价格'); return }
+  var cid='c'+Date.now();
+  if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
+  var r=await sb.from('cards').insert({id:cid,group_id:'seventeen',member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  if(r.error){ showToast('添加失败: '+r.error.message); return }
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  if(r2.error){ showToast('记录失败: '+r2.error.message); return }
+  _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
+  await refreshCurrentData();
+}
+
+async function saveMyCortisCard(){
+  var name=document.getElementById('cardName').value.trim();
+  var mid=document.getElementById('cardMember').value;
+  var price=parseFloat(document.getElementById('recPrice').value)||0;
+  var status=document.getElementById('recStatus').value;
+  if(!name){ showToast('请填写卡名'); return }
+  if(!price){ showToast('请填写价格'); return }
+  var cid='c'+Date.now();
+  var r=await sb.from('cards').insert({id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  if(r.error){ showToast('添加失败: '+r.error.message); return }
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
+  if(r2.error){ showToast('记录失败: '+r2.error.message); return }
+  _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
+  await refreshCurrentData();
+}
+
+// ═══════════════════ 添加卡片（卡库） ═══════════════════
+function openAddCard(){
+  if(!isFounder(currentUser)){ showToast('🔒 仅创始人可添加'); return }
+  var allSeries=[...new Set(cards.map(c=>c.series).filter(Boolean))];
+  var seriesOpts=allSeries.map(s=>`<option value="${s}">${s}</option>`).join('')+'<option value="__new__">+ 新系列…</option>';
+  var allTypes=[...new Set([...CARD_TYPES,...cards.map(c=>c.card_type).filter(Boolean)])];
+  var typeOpts=allTypes.map(t=>`<option value="${t}">${t}</option>`).join('')+'<option value="__new__">+ 新品类…</option>';
+  var grpOpts=groups.map(g=>`<option value="${g.id}">${g.name}（${members.filter(m=>m.group_id===g.id).length}人）</option>`).join('');
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>团体 *</label><select id="cardGroup" onchange="updateMemSel()"><option value="">请选择</option>${grpOpts}</select></div><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">先选团体</option></select></div></div><div class="form-row"><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类的名称</label><input type="text" id="newTypeName"></div><button class="btn-main" onclick="saveCard()">✅ 确认添加</button>`;
+  openModal('➕ 添加卡片',html);
+  _formImgData='';
+  // 如果系列/品类选中 __new__ 而无一选项，onchange 可能没触发，手动检查
+  setTimeout(function(){ toggleNewField('series'); toggleNewField('type') },50);
+}
+function toggleNewField(kind){
+  var sel=document.getElementById(kind==='series'?'cardSeries':'cardType');
+  var grp=document.getElementById(kind==='series'?'newSeriesGroup':'newTypeGroup');
+  var inp=document.getElementById(kind==='series'?'newSeriesName':'newTypeName');
+  grp.classList.toggle('hidden',sel.value!=='__new__');
+  if(sel.value==='__new__') setTimeout(function(){inp.focus()},100);
+}
+
+function updateMemSel(){
+  var gid=document.getElementById('cardGroup').value, s=document.getElementById('cardMember');
+  s.innerHTML='<option value="">请选择成员</option>';
+  members.filter(m=>m.group_id===gid).forEach(m=>{ s.innerHTML+=`<option value="${m.id}">${m.name}</option>` });
+}
+
+function previewCardImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=function(ev){ _formImgData=ev.target.result; document.getElementById('cardUpPlaceholder').classList.add('hidden'); var p=document.getElementById('cardUpPreview'); p.src=ev.target.result; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
+function clearCardPreview(){ document.getElementById('cardImgInput').value=''; document.getElementById('cardUpPlaceholder').classList.remove('hidden'); var p=document.getElementById('cardUpPreview'); p.classList.add('hidden'); p.src=''; _formImgData='' }
+
+async function saveCard(){
+  var name=document.getElementById('cardName').value.trim();
+  var gid=document.getElementById('cardGroup').value;
+  var mid=document.getElementById('cardMember').value;
+  var serSel=document.getElementById('cardSeries');
+  var series=serSel.value==='__new__'?document.getElementById('newSeriesName').value.trim():serSel.value;
+  var typeSel=document.getElementById('cardType');
+  var type=typeSel.value==='__new__'?document.getElementById('newTypeName').value.trim():typeSel.value;
+  if(!name||!gid||!mid||!type){ showToast('请填写必填项'); return }
+  if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
+  if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
+  var id='c'+Date.now();
+  // 图片存 base64 在 image_url 里（小图用 <10MB 够用）
+  // 新品类/新系列自动入库（下次显示在选项中）
+  if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
+  var r=await sb.from('cards').insert({id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  if(r.error){ showToast('添加失败: '+r.error.message); return }
+  _formImgData=''; closeModal(); showToast('✅ 卡片已添加');
+  await refreshCurrentData();
+}
+
+// ═══════════════════ 编辑卡片 ═══════════════════
+function openEditCard(card){
+  if(!isFounder(currentUser)){ showToast('🔒 仅创始人可编辑'); return }
+  var allSeries=[...new Set(cards.map(c=>c.series).filter(Boolean))];
+  var seriesOpts=allSeries.map(s=>`<option value="${s}"${s===card.series?' selected':''}>${s}</option>`).join('')+'<option value="__new__">+ 新系列…</option>';
+  var allTypes=[...new Set([...CARD_TYPES,...cards.map(c=>c.card_type).filter(Boolean)])];
+  var typeOpts=allTypes.map(t=>`<option value="${t}"${t===card.card_type?' selected':''}>${t}</option>`).join('')+'<option value="__new__">+ 新品类…</option>';
+  var grpOpts=groups.map(g=>`<option value="${g.id}"${g.id===card.group_id?' selected':''}>${g.name}</option>`).join('');
+  var memOpts=members.filter(m=>m.group_id===card.group_id).map(m=>`<option value="${m.id}"${m.id===card.member_id?' selected':''}>${m.name}</option>`).join('');
+  _formImgData=card.image_url||'';
+  var previewHidden=card.image_url?'hidden':'';
+  var placeholderHidden=card.image_url?'':'hidden';
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder ${placeholderHidden}" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview ${previewHidden}" src="${card.image_url||''}"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" value="${(card.name||'').replace(/"/g,'&quot;')}" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>团体 *</label><select id="cardGroup" onchange="updateMemSel()">${grpOpts}</select></div><div class="form-group"><label>成员 *</label><select id="cardMember">${memOpts}</select></div></div><div class="form-row"><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><button class="btn-main" onclick="saveEditCard('${card.id}')">💾 保存修改</button>`;
+  openModal('✏️ 编辑卡片',html);
+  setTimeout(function(){ toggleNewField('series'); toggleNewField('type') },50);
+}
+
+async function saveEditCard(cardId){
+  var name=document.getElementById('cardName').value.trim();
+  var gid=document.getElementById('cardGroup').value;
+  var mid=document.getElementById('cardMember').value;
+  var serSel=document.getElementById('cardSeries');
+  var series=serSel.value==='__new__'?document.getElementById('newSeriesName').value.trim():serSel.value;
+  var typeSel=document.getElementById('cardType');
+  var type=typeSel.value==='__new__'?document.getElementById('newTypeName').value.trim():typeSel.value;
+  if(!name||!gid||!mid||!type){ showToast('请填写必填项'); return }
+  if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
+  if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
+  if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
+  var r=await sb.from('cards').update({group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null}).eq('id',cardId);
+  if(r.error){ showToast('更新失败: '+r.error.message); return }
+  _formImgData=''; closeModal(); showToast('✅ 卡片已更新');
+  await refreshCurrentData();
+}
+
+// ═══════════════════ 记入卡册 ═══════════════════
+function openRecordPanel(card){
+  var m=members.find(x=>x.id===card.member_id); var mn=m?m.name:'';
+  var gn=groups.find(g=>g.id===card.group_id);
+  var html=`<div style="display:flex;gap:10px;align-items:center;padding:12px;background:#faf5ff;border-radius:8px;margin-bottom:14px"><div style="width:48px;height:48px;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px">${getEmoji(mn)}</div><div><div style="font-weight:600">${mn} · ${card.name}</div><div style="font-size:12px;color:var(--muted)">${gn?gn.name:''}${card.series?' · '+card.series:''}</div></div></div><div class="form-group"><label>💰 价格（元）</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><textarea id="recNote" rows="2" placeholder="如：走代购"></textarea></div><button class="btn-main" onclick="saveRecord('${card.id}')">✅ 记入卡册</button>`;
+  openModal('📝 记入卡册',html);
+}
+
+async function saveRecord(cardId){
+  var price=parseFloat(document.getElementById('recPrice').value)||0;
+  var status=document.getElementById('recStatus').value;
+  var date=document.getElementById('recDate').value;
+  var note=document.getElementById('recNote').value.trim();
+  if(!price){ showToast('请填写价格'); return }
+  var r=await sb.from('records').insert({id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  if(r.error){ showToast('添加失败: '+r.error.message); return }
+  closeModal(); showToast('✅ 已记入卡册');
+  await refreshCurrentData();
+}
+
+// ═══════════════════ 卡片点击 → 编辑或记入卡册 ═══════════════════
+document.addEventListener('click',function(e){
+  var el=e.target.closest('.card-item');
+  if(!el) return;
+  if(e.target.closest('.card-delete')||e.target.closest('.card-thumb')) return;
+  if(!currentUser){ showToast('请先登录'); return }
+  var cid=el.getAttribute('data-card-id');
+  var card=cards.find(c=>c.id===cid);
+  if(!card) return;
+
+  if(currentTab==='explore'){
+    if(isFounder(currentUser)){ openEditCard(card) }
+    else { openRecordPanel(card) }
+  } else if(currentTab==='my'){
+    // 卡册tab：CORTIS用户走自己的编辑逻辑（已在onclick里），其他人创始人点进编辑
+    if(!isCortisUser() && isFounder(currentUser)){ openEditCard(card) }
+  }
+});
+
+// ═══════════════════ 全局 ═══════════════════
+document.addEventListener('click',function(e){ if(e.target.classList.contains('modal-overlay')&&e.target.id==='modal') closeModal() });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModal(); closeLightbox() } });
+
+// ═══════════════════ 启动 ═══════════════════
+(async function init(){
+  try{
+    await loadData();
+    render();
+  }catch(err){
+    document.getElementById('mainContent').innerHTML='<div style="text-align:center;padding:40px;color:var(--danger)">加载失败: '+err.message+'<br><br>请检查网络连接</div>';
+  }
+})();
+</script>
+</body>
+</html>
