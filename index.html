@@ -21,7 +21,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .view-toggle button{flex:1;border:none;background:none;padding:10px;border-radius:8px;font-size:14px;cursor:pointer;color:#666}
 .view-toggle button.active{background:#fff;color:var(--purple);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .card-item{background:var(--card);border-radius:var(--r);padding:12px;margin-bottom:8px;display:flex;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);position:relative;cursor:pointer}
-.card-item:active{background:#faf5ff}
+.card-item:active{background:var(--tint,#faf5ff)}
 .card-thumb{width:72px;height:72px;border-radius:var(--rs);flex-shrink:0;overflow:hidden;background:#f0ebe3;display:flex;align-items:center;justify-content:center}
 .card-thumb img{width:100%;height:100%;object-fit:cover}
 .card-thumb .emoji{font-size:30px}
@@ -32,7 +32,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-delete{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#999;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .card-delete.confirming{background:#fee2e2;color:var(--danger)}
 .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px;margin-bottom:2px}
-.tag-member{background:#ede9fe;color:var(--purple)}
+.tag-member{background:var(--tint2,#ede9fe);color:var(--purple)}
 .tag-group{background:#dbeafe;color:#2563eb}
 .tag-type{background:#fce7f3;color:#be185d}
 .tag-series{background:#d1fae5;color:#065f46}
@@ -41,7 +41,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .s-arrived{background:#d1fae5;color:#065f46}
 .s-waiting{background:#fee2e2;color:var(--danger)}
 .group-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--card);border-radius:var(--r);margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
-.group-hd:active{background:#faf5ff}
+.group-hd:active{background:var(--tint,#faf5ff)}
 .group-hd .gi{flex:1}
 .group-hd .gn{font-size:15px;font-weight:600}
 .group-hd .gm{font-size:12px;color:var(--muted)}
@@ -49,11 +49,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .group-hd.collapsed .arrow{transform:rotate(-90deg)}
 .group-cards{overflow:hidden;transition:max-height .3s}
 .group-cards.collapsed{max-height:0!important}
-.group-cards .card-item{border-left:3px solid #ede9fe;border-radius:0 var(--r) var(--r) 0}
+.group-cards .card-item{border-left:3px solid var(--tint2,#ede9fe);border-radius:0 var(--r) var(--r) 0}
 .jump-nav{display:flex;gap:6px;overflow-x:auto;padding:0 2px 10px;-webkit-overflow-scrolling:touch}
 .jump-nav::-webkit-scrollbar{display:none}
 .jump-chip{flex-shrink:0;padding:7px 14px;border-radius:16px;font-size:12px;font-weight:600;background:var(--card);color:#666;border:none;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.jump-chip:active{background:#ede9fe;color:var(--purple)}
+.jump-chip:active{background:var(--tint2,#ede9fe);color:var(--purple)}
 .jump-chip .badge{display:inline-block;background:var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px}
 .series-block{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .series-block .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
@@ -75,9 +75,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .manage-bar .count{font-size:12px;color:var(--muted)}
 .manage-actions{display:flex;gap:6px}
 .manage-actions button{padding:6px 12px;border-radius:var(--rs);font-size:12px;border:none;cursor:pointer}
-.btn-add{background:#ede9fe;color:var(--purple);font-weight:600}
+.btn-add{background:var(--tint2,#ede9fe);color:var(--purple);font-weight:600}
 .user-bar{background:var(--card);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
-.user-bar .av{width:36px;height:36px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-size:18px}
+.user-bar .av{width:36px;height:36px;border-radius:50%;background:var(--tint2,#ede9fe);display:flex;align-items:center;justify-content:center;font-size:18px}
 .user-bar .uname{font-size:14px;font-weight:600}
 .user-bar .uinfo{font-size:11px;color:var(--muted)}
 .badge-founder{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;font-size:10px;padding:3px 8px;border-radius:8px;margin-left:6px}
@@ -96,7 +96,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-main{width:100%;padding:14px;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
 .btn-main:active{opacity:.9}
 .btn-sm{padding:6px 14px;border-radius:var(--rs);font-size:12px;border:none;cursor:pointer}
-.upload-area{width:100%;min-height:140px;border:2px dashed #d4c5f9;border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;background:#faf5ff;overflow:hidden}
+.upload-area{width:100%;min-height:140px;border:2px dashed var(--accent-border,#d4c5f9);border-radius:var(--r);display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--tint,#faf5ff);overflow:hidden}
 .upload-placeholder{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px;font-size:13px;color:var(--muted)}
 .upload-placeholder .big-icon{font-size:36px}
 .upload-preview{width:100%;max-height:220px;object-fit:contain;border-radius:var(--rs)}
@@ -114,9 +114,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .role-member{background:#f0ebe3;color:#666}
 .role-actions{display:flex;gap:6px}
 .role-btn{padding:6px 12px;border-radius:var(--rs);font-size:12px;border:none;cursor:pointer}
-.btn-promote{background:#ede9fe;color:var(--purple)}
+.btn-promote{background:var(--tint2,#ede9fe);color:var(--purple)}
 .btn-remove{background:#fee2e2;color:var(--danger)}
-.invite-box{background:#faf5ff;border:2px dashed #c4b5fd;border-radius:var(--r);padding:20px;text-align:center;margin-bottom:16px}
+.invite-box{background:var(--tint,#faf5ff);border:2px dashed var(--accent-border,#c4b5fd);border-radius:var(--r);padding:20px;text-align:center;margin-bottom:16px}
 .invite-code{font-size:32px;font-weight:800;letter-spacing:4px;color:var(--purple);margin:8px 0;user-select:all}
 .invite-hint{font-size:11px;color:var(--muted)}
 .copy-btn{width:100%;padding:10px;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:6px}
@@ -129,6 +129,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 @keyframes spin{to{transform:rotate(360deg)}}
 .label-loading{padding:10px;text-align:center;color:var(--muted);font-size:13px}
 </style>
+<style id="userThemeStyles"></style>
 </head>
 <body>
 
@@ -215,6 +216,14 @@ async function refreshCurrentData(){
 }
 
 function isFounder(u){ return u&&u.role==='founder' }
+// 用户主题 — Rose Quartz #F7CAC9 → Serenity #92A8D1 (SEVENTEEN应援色)
+var USER_THEMES={'u1783008431210':{'--purple':'#92A8D1','--pl':'#F7CAC9','--bg':'#f9f5f5','--tint':'#fdf2f2','--tint2':'#e8dff0','--accent-border':'#d5c8df'}};
+function applyUserTheme(){
+  var s=document.getElementById('userThemeStyles');
+  if(!currentUser||!USER_THEMES[currentUser.id]){s.textContent='';return}
+  var t=USER_THEMES[currentUser.id];
+  s.textContent=':root{'+Object.keys(t).map(function(k){return k+':'+t[k]}).join(';')+';}'
+}
 
 // ═══════════════════ 渲染 ═══════════════════
 function switchTab(tab){
@@ -233,6 +242,7 @@ function renderNavUsers(){
   document.getElementById('navUsers').innerHTML=html;
 }
 function render(){
+  applyUserTheme();
   renderNavUsers();
   var html='';
   if(!currentUser) html+=`<div class="user-bar" onclick="openLoginPanel()"><div class="av">👤</div><div style="flex:1"><div class="uname">点击登录 / 加入</div></div></div>`;
@@ -243,12 +253,15 @@ function render(){
 
 function renderExplore(){
   var founder=isFounder(currentUser);
-  var allSeries=[...new Set(cards.map(c=>c.series).filter(Boolean))];
-  var html=`<div class="manage-bar"><span class="count">📚 ${groups.length}个团体 · ${cards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
+  var gid=getUserGroupId();
+  var filteredCards=gid?cards.filter(c=>c.group_id===gid):cards;
+  var filteredGroups=gid?groups.filter(g=>g.id===gid):groups;
+  var allSeries=[...new Set(filteredCards.map(c=>c.series).filter(Boolean))];
+  var html=`<div class="manage-bar"><span class="count">📚 ${filteredGroups.length}个团体 · ${filteredCards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
   html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
-  if(!cards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
-  if(currentView==='member') html+=renderByMember(cards,founder);
-  else html+=renderBySeries(cards);
+  if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
+  if(currentView==='member') html+=renderByMember(filteredCards,founder);
+  else html+=renderBySeries(filteredCards);
   return html;
 }
 
@@ -503,13 +516,13 @@ function switchUserMenu(){
   document.getElementById('modalBody').innerHTML='<div style="font-weight:600;margin-bottom:8px">点击切换用户</div>'+opts;
 }
 function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; render() }
+function getUserGroupId(){
+  if(!currentUser) return null;
+  if(currentUser.name==='二丁') return 'cortis';
+  return 'seventeen';
+}
 function isCortisUser(){
-  if(!currentUser) return false;
-  var myRecs=records.filter(r=>r.user_id===currentUser.id);
-  if(!myRecs.length) return currentUser.name==='二丁';
-  var cid=myRecs[0].card_id;
-  var card=cards.find(c=>c.id===cid);
-  return card&&card.group_id==='cortis';
+  return getUserGroupId()==='cortis';
 }
 
 // ═══════════════════ 从卡册直接录入 ═══════════════════
@@ -521,7 +534,9 @@ function openMyAddCard(){
   var allTypes=[...new Set([...CARD_TYPES,...cards.map(c=>c.card_type).filter(Boolean)])];
   var typeOpts=allTypes.map(t=>`<option value="${t}">${t}</option>`).join('')+'<option value="__new__">+ 新品类…</option>';
   var grpOpts=`<option value="seventeen">SEVENTEEN（13人）</option>`;
-  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option>${members.filter(m=>m.group_id==='seventeen').map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
+  var myGid=getUserGroupId()||'seventeen';
+  var myMembers=members.filter(m=>m.group_id===myGid);
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option>${myMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
   openModal('📝 录入新卡',html);
   _formImgData='';
   setTimeout(function(){ toggleNewField('series'); toggleNewField('type') },50);
@@ -552,7 +567,8 @@ async function saveMyCard(){
   if(!price){ showToast('请填写价格'); return }
   var cid='c'+Date.now();
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await sb.from('cards').insert({id:cid,group_id:'seventeen',member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var gid=getUserGroupId()||'seventeen';
+  var r=await sb.from('cards').insert({id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
@@ -579,11 +595,14 @@ async function saveMyCortisCard(){
 // ═══════════════════ 添加卡片（卡库） ═══════════════════
 function openAddCard(){
   if(!isFounder(currentUser)){ showToast('🔒 仅创始人可添加'); return }
-  var allSeries=[...new Set(cards.map(c=>c.series).filter(Boolean))];
+  var gid=getUserGroupId();
+  var myCards=gid?cards.filter(c=>c.group_id===gid):cards;
+  var myGroups=gid?groups.filter(g=>g.id===gid):groups;
+  var allSeries=[...new Set(myCards.map(c=>c.series).filter(Boolean))];
   var seriesOpts=allSeries.map(s=>`<option value="${s}">${s}</option>`).join('')+'<option value="__new__">+ 新系列…</option>';
-  var allTypes=[...new Set([...CARD_TYPES,...cards.map(c=>c.card_type).filter(Boolean)])];
+  var allTypes=[...new Set([...CARD_TYPES,...myCards.map(c=>c.card_type).filter(Boolean)])];
   var typeOpts=allTypes.map(t=>`<option value="${t}">${t}</option>`).join('')+'<option value="__new__">+ 新品类…</option>';
-  var grpOpts=groups.map(g=>`<option value="${g.id}">${g.name}（${members.filter(m=>m.group_id===g.id).length}人）</option>`).join('');
+  var grpOpts=myGroups.map(g=>`<option value="${g.id}">${g.name}（${members.filter(m=>m.group_id===g.id).length}人）</option>`).join('');
   var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>团体 *</label><select id="cardGroup" onchange="updateMemSel()"><option value="">请选择</option>${grpOpts}</select></div><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">先选团体</option></select></div></div><div class="form-row"><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类的名称</label><input type="text" id="newTypeName"></div><button class="btn-main" onclick="saveCard()">✅ 确认添加</button>`;
   openModal('➕ 添加卡片',html);
   _formImgData='';
@@ -667,7 +686,7 @@ async function saveEditCard(cardId){
 function openRecordPanel(card){
   var m=members.find(x=>x.id===card.member_id); var mn=m?m.name:'';
   var gn=groups.find(g=>g.id===card.group_id);
-  var html=`<div style="display:flex;gap:10px;align-items:center;padding:12px;background:#faf5ff;border-radius:8px;margin-bottom:14px"><div style="width:48px;height:48px;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px">${getEmoji(mn)}</div><div><div style="font-weight:600">${mn} · ${card.name}</div><div style="font-size:12px;color:var(--muted)">${gn?gn.name:''}${card.series?' · '+card.series:''}</div></div></div><div class="form-group"><label>💰 价格（元）</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><textarea id="recNote" rows="2" placeholder="如：走代购"></textarea></div><button class="btn-main" onclick="saveRecord('${card.id}')">✅ 记入卡册</button>`;
+  var html=`<div style="display:flex;gap:10px;align-items:center;padding:12px;background:var(--tint,#faf5ff);border-radius:8px;margin-bottom:14px"><div style="width:48px;height:48px;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px">${getEmoji(mn)}</div><div><div style="font-weight:600">${mn} · ${card.name}</div><div style="font-size:12px;color:var(--muted)">${gn?gn.name:''}${card.series?' · '+card.series:''}</div></div></div><div class="form-group"><label>💰 价格（元）</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><textarea id="recNote" rows="2" placeholder="如：走代购"></textarea></div><button class="btn-main" onclick="saveRecord('${card.id}')">✅ 记入卡册</button>`;
   openModal('📝 记入卡册',html);
 }
 
