@@ -502,7 +502,7 @@ function switchUserMenu(){
   var opts=users.map(u=>`<div class="user-card" style="cursor:pointer" onclick="switchToUser('${u.id}')"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div></div></div>`).join('');
   document.getElementById('modalBody').innerHTML='<div style="font-weight:600;margin-bottom:8px">点击切换用户</div>'+opts;
 }
-function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); render() }
+function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; render() }
 function isCortisUser(){
   if(!currentUser) return false;
   var myRecs=records.filter(r=>r.user_id===currentUser.id);
