@@ -728,9 +728,13 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModa
 // ═══════════════════ 启动 ═══════════════════
 (async function init(){
   try{
+    console.log('INIT START');
     await loadData();
+    console.log('LOADED groups=', groups.length, 'cards=', cards.length, 'records=', records.length, 'users=', users.length);
     render();
+    console.log('RENDER DONE');
   }catch(err){
+    console.error('INIT ERROR', err);
     document.getElementById('mainContent').innerHTML='<div style="text-align:center;padding:40px;color:var(--danger)">加载失败: '+err.message+'<br><br>请检查网络连接</div>';
   }
 })();
