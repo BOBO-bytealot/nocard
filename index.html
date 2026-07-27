@@ -11,8 +11,11 @@
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);max-width:480px;margin:0 auto;min-height:100vh}
 .nav{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .nav h1{font-size:16px;font-weight:600;white-space:nowrap;flex-shrink:0}
-.nav-actions{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:center}
+.nav-actions{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:center;max-width:calc(100% - 60px);padding-right:4px}
 .nav-actions::-webkit-scrollbar{display:none}
+#navUsers{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:120px}
+#navUsers::-webkit-scrollbar{display:none}
+#navUsers .nav-btn{max-width:70px;overflow:hidden;text-overflow:ellipsis;padding:5px 8px}
 .nav-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 10px;border-radius:14px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .nav-btn.active{background:rgba(255,255,255,.35);font-weight:600}
 .nav-sep{width:1px;height:16px;background:rgba(255,255,255,.25);flex-shrink:0;margin:0 2px}
@@ -166,7 +169,7 @@ var SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ═══════════════════ 数据常量 ═══════════════════
-var MEMBER_EMOJIS = {'崔胜哲':'👑','尹净汉':'😇','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🐺','李知勋':'🎸','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔韩率':'🦅','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
+var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
 var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
 var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
@@ -200,8 +203,11 @@ async function loadData(){
 
   // cards 只拉最近100张，records 只拉当前用户
   var uid=localStorage.getItem('kcard_user_id');
+  var myGid=getUserGroupId();
+  var cardQuery=sb.from('cards').select('*').order('created_at',{ascending:false}).limit(CARD_PAGE_SIZE);
+  if(myGid) cardQuery=cardQuery.eq('group_id',myGid);
   var dynamicPromises=[
-    sb.from('cards').select('*').order('created_at',{ascending:false}).limit(100),
+    cardQuery,
     sb.from('invite_codes').select('*').limit(1).maybeSingle()
   ];
   if(uid) dynamicPromises.push(sb.from('records').select('*').eq('user_id',uid).order('created_at',{ascending:false}));
@@ -233,8 +239,20 @@ async function loadData(){
 async function refreshCurrentData(){
   var uid=localStorage.getItem('kcard_user_id');
   var r1=await sb.from('users').select('*'); users=r1.data||[]; _cacheSet('users',users);
-  var r2=await sb.from('cards').select('*').order('created_at',{ascending:false}).limit(CARD_PAGE_SIZE); cards=r2.data||[]; _cardsHasMore=(r2.data||[]).length>=CARD_PAGE_SIZE;
+  var myGid=getUserGroupId();
+  var cardQuery=sb.from('cards').select('*').order('created_at',{ascending:false}).limit(CARD_PAGE_SIZE);
+  if(myGid) cardQuery=cardQuery.eq('group_id',myGid);
+  var r2=await cardQuery; cards=r2.data||[]; _cardsHasMore=(r2.data||[]).length>=CARD_PAGE_SIZE;
   var r3=uid?await sb.from('records').select('*').eq('user_id',uid).order('created_at',{ascending:false}):{data:[]}; records=r3.data||[];
+  // 确保卡册关联的 cards 也在 cards 数组里
+  if(records.length){
+    var existingIds={}; cards.forEach(function(c){ existingIds[c.id]=true });
+    var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
+    if(missingIds.length){
+      var extra=await sb.from('cards').select('*').in('id',missingIds);
+      if(extra.data&&extra.data.length) cards=cards.concat(extra.data);
+    }
+  }
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
   render();
 }
@@ -243,7 +261,10 @@ async function loadMoreCards(){
   if(_cardsLoadingMore || !_cardsHasMore) return;
   _cardsLoadingMore=true;
   var last=cards[cards.length-1];
-  var r=await sb.from('cards').select('*').order('created_at',{ascending:false}).lt('created_at',last.created_at).limit(CARD_PAGE_SIZE);
+  var myGid=getUserGroupId();
+  var q=sb.from('cards').select('*').order('created_at',{ascending:false}).lt('created_at',last.created_at).limit(CARD_PAGE_SIZE);
+  if(myGid) q=q.eq('group_id',myGid);
+  var r=await q;
   var more=r.data||[];
   cards=cards.concat(more);
   _cardsHasMore=more.length>=CARD_PAGE_SIZE;
@@ -290,7 +311,7 @@ function render(){
 function renderExplore(){
   var founder=isFounder(currentUser);
   var gid=getUserGroupId();
-  var filteredCards=gid?cards.filter(c=>c.group_id===gid):cards;
+  var filteredCards=cards.filter(function(c){ return !gid || c.group_id===gid });
   var filteredGroups=gid?groups.filter(g=>g.id===gid):groups;
   var allSeries=[...new Set(filteredCards.map(c=>c.series).filter(Boolean))];
   var html=`<div class="manage-bar"><span class="count">📚 ${filteredGroups.length}个团体 · ${filteredCards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
@@ -305,8 +326,9 @@ function renderExplore(){
 }
 
 function renderByMember(cardList,founder){
+  var myGid=getUserGroupId();
   var byMember={};
-  cardList.forEach(c=>{ var k=c.group_id+'|'+c.member_id; if(!byMember[k]) byMember[k]={gid:c.group_id,mid:c.member_id,list:[]}; byMember[k].list.push(c) });
+  cardList.forEach(c=>{ if(myGid && c.group_id!==myGid) return; var k=c.group_id+'|'+c.member_id; if(!byMember[k]) byMember[k]={gid:c.group_id,mid:c.member_id,list:[]}; byMember[k].list.push(c) });
   var sorted=Object.values(byMember).sort((a,b)=>{
     var ga=groups.findIndex(g=>g.id===a.gid), gb=groups.findIndex(g=>g.id===b.gid);
     if(ga!==gb) return ga-gb;
@@ -354,13 +376,14 @@ function renderBySeries(cardList){
   return html;
 }
 
-function buildCardItem(c, founder, isRecord){
+function buildCardItem(c, founder, isRecord, recordObj){
   var m=members.find(x=>x.id===c.member_id); var mn=m?m.name:''; var en=getEmoji(mn);
   var cidForEdit=c.cardId||c.id||c.recordId||'';
-  var html=`<div class="card-item" data-card-id="${cidForEdit}"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span class="emoji">${en}</span>`}</div><div class="card-body"><h4>${c.name}</h4><div class="meta">${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span>${isRecord?`<span class="tag tag-member">${mn}</span>`:''}</div>`;
+  var ridAttr=recordObj?' data-record-id="'+recordObj.id+'"':'';
+  var html=`<div class="card-item" data-card-id="${cidForEdit}"${ridAttr}><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span class="emoji">${en}</span>`}</div><div class="card-body"><h4>${c.name}</h4><div class="meta">${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span>${isRecord?`<span class="tag tag-member">${mn}</span>`:''}</div>`;
   if(isRecord) html+=`<div class="price-line">¥${c.price} <span class="tag tag-status ${STATUS_CLASS[c.status]}">${c.status}</span></div>`;
   html+=`</div>`;
-  if(founder||isRecord) html+=`<button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'${isRecord?'record':'card'}','${c.id}')">×</button>`;
+  if(founder||isRecord) html+=`<button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'${isRecord?'record':'card'}','${isRecord&&recordObj?recordObj.id:c.id}')">×</button>`;
   html+=`</div>`;
   return html;
 }
@@ -416,8 +439,8 @@ function renderMyByMember(myRecs){
     var itr=g.list.filter(r=>r.status==='在途'||r.status==='未发货').length;
     html+=`<div class="group-hd" onclick="toggleGroup(this,'mycards_${g.gid}_${g.mid}')" id="mym_${g.gid}_${g.mid}"><div class="gi"><div class="gn">${getEmoji(mn)} ${mn} · ${gn}</div><div class="gm">${g.list.length}张 · ¥${tp} · ${itr}张在途</div></div><div class="arrow">▼</div></div><div class="group-cards" id="mycards_${g.gid}_${g.mid}">`;
     g.list.forEach(r=>{
-      var c=r._card; c.price=r.price; c.status=r.status; c.id=r.id; c.recordId=r.id; c.cardId=r.card_id;
-      html+=buildCardItem(c,true,true);
+      var c=r._card; c.price=r.price; c.status=r.status; c.cardId=r.card_id;
+      html+=buildCardItem(c,true,true,r);
     });
     html+=`</div>`;
   });
@@ -437,37 +460,14 @@ function renderMyByCard(myRecs){
     var tp=data.list.reduce((s,r)=>s+(r.price||0),0);
     html+=`<div class="group-hd" onclick="toggleGroup(this,'myscards_${name}')" id="mys_${name}"><div class="gi"><div class="gn">${name}</div><div class="gm">${data.list.length}张 · ¥${tp}</div></div><div class="arrow">▼</div></div><div class="group-cards" id="myscards_${name}">`;
     data.list.forEach(r=>{
-      var c=r._card; c.price=r.price; c.status=r.status; c.id=r.id; c.cardId=r.card_id;
-      html+=buildCardItem(c,true,true);
+      var c=r._card; c.price=r.price; c.status=r.status; c.cardId=r.card_id;
+      html+=buildCardItem(c,true,true,r);
     });
     html+=`</div>`;
   });
   html+='</div>'; return html;
 }
 
-function editCortisRecord(rid,price,status,cname){
-  event.stopPropagation();
-  var rec=records.find(r=>r.id===rid);
-  var cardId=rec?rec.card_id:null;
-  var card=cardId?cards.find(c=>c.id===cardId):null;
-  var imgPreview='';
-  if(card&&card.image_url){
-    imgPreview=`<div style="text-align:center;margin-bottom:8px"><img src="${card.image_url}" style="max-width:100%;max-height:180px;border-radius:8px"><div style="font-size:11px;color:var(--muted);margin-top:4px">当前卡面</div></div>`;
-  }
-  var editCardBtn='';
-  if(isFounder(currentUser)&&cardId){
-    editCardBtn=`<button class="btn-main" style="background:var(--pl);margin-top:4px" onclick="event.stopPropagation();closeModal();openEditCard(cards.find(c=>c.id==='${cardId}'))">📸 更换卡面 / 编辑卡片</button>`;
-  }
-  var html=imgPreview+`<div class="form-group"><label>💰 价格（元）</label><input type="number" id="editPrice" value="${price}" min="0"></div><div class="form-group"><label>是否在手</label><select id="editStatus"><option value="已到手"${status==='已到手'?' selected':''}>✅ 已到手</option><option value="未发货"${status==='未发货'?' selected':''}>📦 未在手</option></select></div><button class="btn-main" onclick="saveEditCortisRecord('${rid}')">💾 保存</button>${editCardBtn}`;
-  openModal('✏️ 编辑 | '+cname,html);
-}
-async function saveEditCortisRecord(rid){
-  var price=parseFloat(document.getElementById('editPrice').value)||0;
-  var status=document.getElementById('editStatus').value;
-  await sb.from('records').update({price:price,status:status}).eq('id',rid);
-  closeModal(); showToast('💾 已保存');
-  await refreshCurrentData();
-}
 function renderMyCortisCards(myRecs){
   myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
   var sorted=myRecs.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
@@ -476,7 +476,7 @@ function renderMyCortisCards(myRecs){
     var c=r._card; var isArrived=r.status==='已到手';
     var en=getEmoji(''); var img=c.image_url||'';
     var memberName=members.find(m=>m.id===c.member_id); var mn=memberName?memberName.name:'';
-    html+=`<div class="card-item" onclick="editCortisRecord('${r.id}','${r.price}','${r.status}','${(c.name||'').replace(/'/g,"\\'")}')"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${img}','${mn}','${c.name||''}','')">${img?`<img src="${img}" alt="">`:`<span class="emoji">${getEmoji(mn)}</span>`}</div><div class="card-body"><h4>${c.name||'未命名'}</h4><div class="meta"><span class="tag tag-member">${mn}</span></div><div class="price-line">¥${r.price} <span class="tag tag-status ${isArrived?'s-arrived':'s-waiting'}">${r.status}</span></div></div><button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'record','${r.id}')">×</button></div>`;
+    html+=`<div class="card-item" data-card-id="${c.id||''}" data-record-id="${r.id}"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${img}','${mn}','${c.name||''}','')">${img?`<img src="${img}" alt="">`:`<span class="emoji">${getEmoji(mn)}</span>`}</div><div class="card-body"><h4>${c.name||'未命名'}</h4><div class="meta"><span class="tag tag-member">${mn}</span></div><div class="price-line">¥${r.price} <span class="tag tag-status ${isArrived?'s-arrived':'s-waiting'}">${r.status}</span></div></div><button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'record','${r.id}')">×</button></div>`;
   });
   return html;
 }
@@ -930,17 +930,47 @@ document.addEventListener('click',function(e){
   if(e.target.closest('.card-delete')||e.target.closest('.card-thumb')) return;
   if(!currentUser){ showToast('请先登录'); return }
   var cid=el.getAttribute('data-card-id');
-  var card=cards.find(c=>c.id===cid);
-  if(!card) return;
+  var rid=el.getAttribute('data-record-id');
 
   if(currentTab==='explore'){
+    var card=cards.find(c=>c.id===cid);
+    if(!card) return;
     if(isFounder(currentUser)){ openEditCard(card) }
     else { openRecordPanel(card) }
   } else if(currentTab==='my'){
-    // 卡册tab：CORTIS用户走自己的编辑逻辑（已在onclick里），其他人创始人点进编辑
-    if(!isCortisUser() && isFounder(currentUser)){ openEditCard(card) }
+    // 卡册tab：有 record-id 时打开记录编辑
+    if(rid){
+      editMyRecord(rid);
+    } else if(isFounder(currentUser)){
+      var card=cards.find(c=>c.id===cid);
+      if(card) openEditCard(card);
+    }
   }
 });
+
+// ═══════════════════ 编辑卡册记录 ═══════════════════
+function editMyRecord(rid){
+  var rec=records.find(function(r){return r.id===rid});
+  if(!rec) return;
+  var card=cards.find(function(c){return c.id===rec.card_id});
+  var cname=card?card.name:'未知卡';
+  var isCortis=isCortisUser();
+  var imgPreview='';
+  if(card&&card.image_url){
+    imgPreview=`<div style="text-align:center;margin-bottom:8px"><img src="${card.image_url}" style="max-width:100%;max-height:180px;border-radius:8px"><div style="font-size:11px;color:var(--muted);margin-top:4px">当前卡面</div></div>`;
+  }
+  var statusOpts=isCortis?`<option value="已到手"${rec.status==='已到手'?' selected':''}>✅ 已到手</option><option value="未发货"${rec.status==='未发货'?' selected':''}>📦 未发货</option>`:STATUSES.map(function(s){return `<option value="${s}"${rec.status===s?' selected':''}>${s}</option>`}).join('');
+  var html=imgPreview+`<div class="form-group"><label>💰 价格（元）</label><input type="number" id="editRecPrice" value="${rec.price||0}" min="0"></div><div class="form-group"><label>📦 状态</label><select id="editRecStatus">${statusOpts}</select></div><button class="btn-main" onclick="saveMyRecord('${rid}')">💾 保存</button>`;
+  openModal('✏️ 编辑 | '+cname,html);
+}
+
+async function saveMyRecord(rid){
+  var price=parseFloat(document.getElementById('editRecPrice').value)||0;
+  var status=document.getElementById('editRecStatus').value;
+  await sb.from('records').update({price:price,status:status}).eq('id',rid);
+  closeModal(); showToast('💾 已保存');
+  await refreshCurrentData();
+}
 
 // ═══════════════════ 全局 ═══════════════════
 document.addEventListener('click',function(e){ if(e.target.classList.contains('modal-overlay')&&e.target.id==='modal') closeModal() });
