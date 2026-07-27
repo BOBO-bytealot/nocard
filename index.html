@@ -29,7 +29,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-body h4{font-size:15px;font-weight:600;margin-bottom:2px}
 .card-body .meta{font-size:12px;color:var(--muted);line-height:1.5}
 .card-body .price-line{font-size:13px;font-weight:600;color:#e74c3c;margin-top:2px}
-.card-delete{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#999;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.card-delete{position:absolute;top:8px;right:8px;min-width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#999;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;padding:0 6px;white-space:nowrap}
 .card-delete.confirming{background:#fee2e2;color:var(--danger)}
 .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px;margin-bottom:2px}
 .tag-member{background:var(--tint2,#ede9fe);color:var(--purple)}
@@ -140,6 +140,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="nav-btn active" id="nav-my" onclick="switchTab('my')">卡册</button>
     <span class="nav-sep"></span>
     <span id="navUsers"></span>
+    <button class="nav-btn" onclick="forceRefresh()" style="background:rgba(255,255,255,.15);padding:5px 8px" title="刷新">🔄</button>
     <button class="nav-btn" onclick="openProfilePanel()" style="background:rgba(255,255,255,.15);padding:5px 8px">⚙️</button>
   </div>
 </nav>
@@ -175,25 +176,46 @@ var currentTab='my', currentView='member';
 var groups=[], members=[], users=[], cards=[], records=[];
 var currentUser=null;
 var _formImgData='';
+var CACHE_TTL=24*60*60*1000; // 缓存24小时
+var CARD_PAGE_SIZE=100, _cardsHasMore=true, _cardsLoadingMore=false;
+
+function _cacheGet(key){ try{ var raw=localStorage.getItem('kcard_cache_'+key); if(!raw) return null; var obj=JSON.parse(raw); if(Date.now()-obj.ts>CACHE_TTL) return null; return obj.data }catch(e){ return null } }
+function _cacheSet(key,data){ try{ localStorage.setItem('kcard_cache_'+key,JSON.stringify({ts:Date.now(),data:data})) }catch(e){} }
+function _cacheClear(){ for(var i=localStorage.length-1;i>=0;i--){ var k=localStorage.key(i); if(k&&k.indexOf('kcard_cache_')===0) localStorage.removeItem(k) } }
 
 function getEmoji(name){ if(!name) return '👥'; var n=name.split('(')[0]; return MEMBER_EMOJIS[n]||name[0] }
 
 // ═══════════════════ 数据加载 ═══════════════════
 async function loadData(){
-  var results=await Promise.all([
-    sb.from('groups').select('*').order('sort_order'),
-    sb.from('members').select('*').order('sort_order'),
-    sb.from('users').select('*'),
-    sb.from('cards').select('*').order('created_at',{ascending:false}),
-    sb.from('records').select('*').order('created_at',{ascending:false}),
+  // 静态数据优先读缓存
+  groups=_cacheGet('groups');
+  members=_cacheGet('members');
+  users=_cacheGet('users');
+
+  var needGroups=!groups, needMembers=!members, needUsers=!users;
+  var staticPromises=[];
+  if(needGroups) staticPromises.push(sb.from('groups').select('*').order('sort_order'));
+  if(needMembers) staticPromises.push(sb.from('members').select('*').order('sort_order'));
+  if(needUsers) staticPromises.push(sb.from('users').select('*'));
+
+  // cards 只拉最近100张，records 只拉当前用户
+  var uid=localStorage.getItem('kcard_user_id');
+  var dynamicPromises=[
+    sb.from('cards').select('*').order('created_at',{ascending:false}).limit(100),
     sb.from('invite_codes').select('*').limit(1).maybeSingle()
-  ]);
-  groups=results[0].data||[];
-  members=results[1].data||[];
-  users=results[2].data||[];
-  cards=results[3].data||[];
-  records=results[4].data||[];
-  var inviteData=results[5].data;
+  ];
+  if(uid) dynamicPromises.push(sb.from('records').select('*').eq('user_id',uid).order('created_at',{ascending:false}));
+  else dynamicPromises.push(Promise.resolve({data:[]}));
+
+  var staticResults=await Promise.all(staticPromises);
+  var dynamicResults=await Promise.all(dynamicPromises);
+  var si=0;
+  if(needGroups){ groups=staticResults[si].data||[]; _cacheSet('groups',groups); si++ }
+  if(needMembers){ members=staticResults[si].data||[]; _cacheSet('members',members); si++ }
+  if(needUsers){ users=staticResults[si].data||[]; _cacheSet('users',users); si++ }
+  cards=dynamicResults[0].data||[];
+  var inviteData=dynamicResults[1].data;
+  records=dynamicResults[2].data||[];
   if(!inviteData){
     var code='KARD-'+Math.random().toString(36).substring(2,6).toUpperCase();
     await sb.from('invite_codes').insert({code:code,used:false});
@@ -204,14 +226,28 @@ async function loadData(){
   var uid=localStorage.getItem('kcard_user_id');
   if(uid) currentUser=users.find(u=>u.id===uid)||null;
   if(!currentUser&&users.length>0&&users[0].role==='founder'){ currentUser=users[0]; localStorage.setItem('kcard_user_id',currentUser.id) }
-  if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
+  // 实时订阅关闭，改手动刷新，避免后台频繁全量刷新
+  // if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
 }
 
 async function refreshCurrentData(){
-  var r1=await sb.from('users').select('*'); users=r1.data||[];
-  var r2=await sb.from('cards').select('*').order('created_at',{ascending:false}); cards=r2.data||[];
-  var r3=await sb.from('records').select('*').order('created_at',{ascending:false}); records=r3.data||[];
+  var uid=localStorage.getItem('kcard_user_id');
+  var r1=await sb.from('users').select('*'); users=r1.data||[]; _cacheSet('users',users);
+  var r2=await sb.from('cards').select('*').order('created_at',{ascending:false}).limit(CARD_PAGE_SIZE); cards=r2.data||[]; _cardsHasMore=(r2.data||[]).length>=CARD_PAGE_SIZE;
+  var r3=uid?await sb.from('records').select('*').eq('user_id',uid).order('created_at',{ascending:false}):{data:[]}; records=r3.data||[];
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
+  render();
+}
+
+async function loadMoreCards(){
+  if(_cardsLoadingMore || !_cardsHasMore) return;
+  _cardsLoadingMore=true;
+  var last=cards[cards.length-1];
+  var r=await sb.from('cards').select('*').order('created_at',{ascending:false}).lt('created_at',last.created_at).limit(CARD_PAGE_SIZE);
+  var more=r.data||[];
+  cards=cards.concat(more);
+  _cardsHasMore=more.length>=CARD_PAGE_SIZE;
+  _cardsLoadingMore=false;
   render();
 }
 
@@ -262,6 +298,9 @@ function renderExplore(){
   if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
   if(currentView==='member') html+=renderByMember(filteredCards,founder);
   else html+=renderBySeries(filteredCards);
+  if(_cardsHasMore && currentTab==='explore'){
+    html+=`<div style="text-align:center;padding:16px"><button class="btn-add" onclick="loadMoreCards()">${ _cardsLoadingMore?'加载中...':'加载更多卡片'}</button></div>`;
+  }
   return html;
 }
 
@@ -491,6 +530,8 @@ async function doFirstLogin(){
 }
 
 // ═══════════════════ 人员管理 ═══════════════════
+function forceRefresh(){ showToast('🔄 刷新中...'); _cacheClear(); refreshCurrentData().then(function(){ showToast('✅ 已刷新') }) }
+
 function openProfilePanel(){
   if(!currentUser){ openLoginPanel(); return }
   var userList=users.map(u=>`<div class="user-card"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.id===currentUser.id?'(当前)':''} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div><div style="font-size:11px;color:var(--muted)">#${u.id} · ${records.filter(r=>r.user_id===u.id).length}张</div></div>${u.id===currentUser.id?'':u.role==='founder'&&isFounder(currentUser)?`<div class="role-actions"><button class="role-btn btn-remove" onclick="removeUser('${u.id}')">移除</button></div>`:u.role==='member'&&isFounder(currentUser)?`<div class="role-actions"><button class="role-btn btn-promote" onclick="promoteUser('${u.id}')">升创始人</button><button class="role-btn btn-remove" onclick="removeUser('${u.id}')">移除</button></div>`:''}</div>`).join('');
@@ -658,9 +699,7 @@ async function doAiSave(parsed){
 
   var r1=await sb.from('cards').insert(cardData);
   if(r1.error){ showToast('添加失败: '+r1.error.message); return }
-  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:parsed.price||0,status:recStatus,buy_date:'',note:'AI录入'});
-  if(r2.error){ showToast('记录失败: '+r2.error.message); return }
-  closeModal(); showToast('✅ 已录入：'+parsed.name);
+  closeModal(); showToast('✅ 已录入卡库：'+parsed.name);
   await refreshCurrentData();
 }
 
