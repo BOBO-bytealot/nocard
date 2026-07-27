@@ -338,7 +338,7 @@ function renderMyCards(){
   var out=myRecs.filter(r=>r.status==='可出'||r.status==='待售').length;
   var filterActive=statusFilter?' active':'';
   var filterHtml=STATUSES.map(s=>`<button class="nav-btn${statusFilter===s?filterActive:''}" onclick="statusFilter=statusFilter==='${s}'?'':'${s}';render();" style="color:var(--text);background:${statusFilter===s?'var(--purple)':'#f3f4f6'};opacity:${statusFilter&&statusFilter!==s?'0.4':'1'}">${s}</button>`).join('');
-  var html=`<div class="manage-bar"><span class="count">💝 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button></div></div><div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
+  var html=`<div class="manage-bar"><span class="count">💝 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openAiImport()">🤖 AI 录入</button><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button><button class="btn-add" onclick="openMyCardPicker()" style="background:#dbeafe;color:#2563eb">📚 从卡库选</button></div></div><div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
   if(!myRecs.length) return html+'<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">💝</div><p>卡册还是空的</p><p>点上面的按钮录入第一张卡吧</p></div>';
 
   if(isCortisUser()){
@@ -523,6 +523,188 @@ function getUserGroupId(){
 }
 function isCortisUser(){
   return getUserGroupId()==='cortis';
+}
+
+// ═══════════════════ AI 自然语言录入 ═══════════════════
+function openAiImport(){
+  if(!currentUser){ showToast('请先登录'); return }
+  var example=isCortisUser()?'赵雨凡 stb专卡 30 未发货':'金珉奎 2026克拉岛zone卡 2026克拉岛 zone卡 28 已到手';
+  var fields=isCortisUser()?'成员、卡名、价格、状态':'成员、卡名、系列、品类、价格、状态';
+  var html=`<input type="file" id="aiImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewAiImg(event)"><div class="form-group"><label>📸 卡面图片（可选）</label><div class="upload-area" id="aiUploadArea" onclick="document.getElementById('aiImgInput').click()"><div class="upload-placeholder" id="aiUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="aiUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('aiImgInput').setAttribute('capture','environment');document.getElementById('aiImgInput').click()">📸 拍照</button><button onclick="document.getElementById('aiImgInput').removeAttribute('capture');document.getElementById('aiImgInput').click()">🖼️ 相册</button><button onclick="clearAiPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>📝 一句话录入（${fields}）</label><textarea id="aiInput" rows="4" placeholder="例如：${example}"></textarea></div><div style="font-size:11px;color:var(--muted);margin-bottom:10px">支持空格或换行分隔。不确定的字段我会弹出来让你确认。</div><button class="btn-main" onclick="parseAndSaveAiImport()">🚀 解析并录入</button><div style="margin-top:10px"><button class="btn-sm" onclick="closeModal();openMyAddCard()" style="background:#f3f4f6;color:#666">↩️ 手动录入</button></div>`;
+  openModal('🤖 AI 录入',html);
+  _formImgData='';
+}
+function previewAiImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=function(ev){ _formImgData=ev.target.result; document.getElementById('aiUpPlaceholder').classList.add('hidden'); var p=document.getElementById('aiUpPreview'); p.src=ev.target.result; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
+function clearAiPreview(){ document.getElementById('aiImgInput').value=''; document.getElementById('aiUpPlaceholder').classList.remove('hidden'); var p=document.getElementById('aiUpPreview'); p.classList.add('hidden'); p.src=''; _formImgData='' }
+
+function parseAiInput(text){
+  if(!text.trim()) return null;
+  // 优先按行切分，否则按空格切分
+  var tokens=text.trim().split(/[\n，,]+/).map(function(s){return s.trim()}).filter(Boolean);
+  if(tokens.length===1) tokens=text.trim().split(/\s+/).filter(Boolean);
+
+  var result={member:null,name:'',series:'',card_type:'',price:0,status:'',unknown:tokens.slice()};
+  var myGid=getUserGroupId()||'seventeen';
+  var myMembers=members.filter(function(m){return m.group_id===myGid});
+
+  // 识别成员
+  for(var i=0;i<tokens.length;i++){
+    var t=tokens[i];
+    var found=myMembers.find(function(m){return m.name===t || (m.aliases&&m.aliases.includes(t))});
+    if(!found) found=myMembers.find(function(m){return m.name.indexOf(t)>=0 || t.indexOf(m.name)>=0});
+    if(found){ result.member=found.id; result.unknown.splice(result.unknown.indexOf(t),1); break }
+  }
+
+  // 识别价格
+  for(var i=0;i<result.unknown.length;i++){
+    var t=result.unknown[i];
+    var m=t.match(/(?:¥|￥)?(\d+(?:\.\d+)?)/);
+    if(m){ result.price=parseFloat(m[1]); result.unknown.splice(i,1); i-- }
+  }
+
+  // 识别状态
+  for(var i=0;i<result.unknown.length;i++){
+    var t=result.unknown[i];
+    var foundStatus=STATUSES.find(function(s){return s===t || t.indexOf(s)>=0});
+    if(foundStatus){ result.status=foundStatus; result.unknown.splice(i,1); i-- }
+  }
+
+  if(!isCortisUser()){
+    // 识别品类
+    for(var i=0;i<result.unknown.length;i++){
+      var t=result.unknown[i];
+      var foundType=CARD_TYPES.find(function(ct){return ct===t || t.indexOf(ct)>=0});
+      if(foundType){ result.card_type=foundType; result.unknown.splice(i,1); i-- }
+    }
+    // 剩下的：第一个是卡名，第二个是系列（如果有）
+    if(result.unknown.length>0){ result.name=result.unknown[0]; result.unknown.shift() }
+    if(result.unknown.length>0){ result.series=result.unknown[0]; result.unknown.shift() }
+  } else {
+    // CORTIS：剩下第一个就是卡名
+    if(result.unknown.length>0){ result.name=result.unknown[0]; result.unknown.shift() }
+  }
+
+  // 默认值
+  if(!result.status) result.status='已到手';
+  if(!result.price) result.price=0;
+  if(!result.card_type && !isCortisUser()) result.card_type='其他';
+  return result;
+}
+
+async function parseAndSaveAiImport(){
+  var text=document.getElementById('aiInput').value;
+  var parsed=parseAiInput(text);
+  if(!parsed){ showToast('请输入内容'); return }
+
+  // 缺少关键信息则进入确认表单
+  if(!parsed.member || !parsed.name || parsed.price<=0 || !parsed.status || (!isCortisUser()&&!parsed.card_type)){
+    openAiConfirm(parsed);
+    return
+  }
+  await doAiSave(parsed);
+}
+
+function openAiConfirm(parsed){
+  var myGid=getUserGroupId()||'seventeen';
+  var myMembers=members.filter(function(m){return m.group_id===myGid});
+  var memOpts=myMembers.map(function(m){return `<option value="${m.id}"${m.id===parsed.member?' selected':''}>${m.name}</option>`}).join('');
+  var typeOpts=CARD_TYPES.map(function(t){return `<option value="${t}"${t===parsed.card_type?' selected':''}>${t}</option>`}).join('');
+  var statusOpts=STATUSES.map(function(s){return `<option value="${s}"${s===parsed.status?' selected':''}>${s}</option>`}).join('');
+
+  if(isCortisUser()){
+    var html=`<div class="form-group"><label>成员</label><select id="aiConfirmMember"><option value="">无</option>${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
+  } else {
+    var html=`<div class="form-row"><div class="form-group"><label>成员 *</label><select id="aiConfirmMember">${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div></div><div class="form-row"><div class="form-group"><label>系列</label><input type="text" id="aiConfirmSeries" value="${(parsed.series||'').replace(/"/g,'&quot;')}" placeholder="可选"></div><div class="form-group"><label>品类 *</label><select id="aiConfirmType">${typeOpts}</select></div></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
+  }
+  openModal('🤖 确认录入信息',html);
+}
+
+async function saveAiConfirm(){
+  var parsed={
+    member:document.getElementById('aiConfirmMember').value,
+    name:document.getElementById('aiConfirmName').value.trim(),
+    price:parseFloat(document.getElementById('aiConfirmPrice').value)||0,
+    status:document.getElementById('aiConfirmStatus').value
+  };
+  if(!isCortisUser()){
+    parsed.series=document.getElementById('aiConfirmSeries').value.trim();
+    parsed.card_type=document.getElementById('aiConfirmType').value;
+  }
+  if(!parsed.member || !parsed.name || parsed.price<=0 || !parsed.status || (!isCortisUser()&&!parsed.card_type)){
+    showToast('请补全必填项'); return
+  }
+  await doAiSave(parsed);
+}
+
+async function doAiSave(parsed){
+  var cid='c'+Date.now();
+  var gid=getUserGroupId()||'seventeen';
+  var memberName=members.find(function(m){return m.id===parsed.member});
+  var recStatus=parsed.status;
+  // CORTIS 只有两种状态
+  if(isCortisUser() && recStatus!=='已到手' && recStatus!=='未发货') recStatus='未发货';
+
+  var cardData={
+    id:cid,
+    group_id:gid,
+    member_id:parsed.member||null,
+    name:parsed.name,
+    series:isCortisUser()?'':(parsed.series||''),
+    card_type:isCortisUser()?'其他':(parsed.card_type||'其他'),
+    image_url:_formImgData||null,
+    image_emoji:getEmoji(memberName?memberName.name:''),
+    created_by:currentUser.id
+  };
+
+  var r1=await sb.from('cards').insert(cardData);
+  if(r1.error){ showToast('添加失败: '+r1.error.message); return }
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:parsed.price||0,status:recStatus,buy_date:'',note:'AI录入'});
+  if(r2.error){ showToast('记录失败: '+r2.error.message); return }
+  closeModal(); showToast('✅ 已录入：'+parsed.name);
+  await refreshCurrentData();
+}
+
+// ═══════════════════ 从卡库选卡 ═══════════════════
+function openMyCardPicker(){
+  if(!currentUser){ showToast('请先登录'); return }
+  var gid=getUserGroupId();
+  var pool=gid?cards.filter(function(c){return c.group_id===gid}):cards.slice();
+  if(!pool.length){ showToast('卡库还是空的'); return }
+  var searchHtml=`<div class="form-group" style="margin-bottom:10px"><input type="text" id="pickSearch" placeholder="搜索卡名 / 成员 / 系列" oninput="filterPickerCards()" style="margin-bottom:0"></div>`;
+  var listHtml=`<div id="pickerList" style="max-height:55vh;overflow-y:auto">`+renderPickerCardList(pool)+`</div>`;
+  openModal('📚 从卡库选卡',searchHtml+listHtml);
+  window._pickerPool=pool;
+}
+
+function renderPickerCardList(pool){
+  return pool.map(function(c){
+    var m=members.find(function(x){return x.id===c.member_id});
+    var mn=m?m.name:'';
+    var img=c.image_url?`<img src="${c.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`:`<div style="font-size:22px">${getEmoji(mn)}</div>`;
+    return `<div class="card-item" style="cursor:pointer" onclick="recordPickedCard('${c.id}')">${img?`<div class="card-thumb">${img}</div>`:''}<div class="card-body"><h4>${c.name}</h4><div class="meta"><span class="tag tag-member">${mn}</span>${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span></div></div></div>`;
+  }).join('');
+}
+
+function filterPickerCards(){
+  var kw=document.getElementById('pickSearch').value.trim().toLowerCase();
+  var pool=window._pickerPool||[];
+  var filtered=pool.filter(function(c){
+    var m=members.find(function(x){return x.id===c.member_id});
+    var text=(c.name+' '+(c.series||'')+' '+(m?m.name:'')+' '+(c.card_type||'')).toLowerCase();
+    return text.indexOf(kw)>=0;
+  });
+  document.getElementById('pickerList').innerHTML=renderPickerCardList(filtered);
+}
+
+function recordPickedCard(cardId){
+  closeModal();
+  var card=cards.find(function(c){return c.id===cardId});
+  if(!card) return;
+  var m=members.find(function(x){return x.id===card.member_id});
+  var mn=m?m.name:'';
+  var gn=groups.find(function(g){return g.id===card.group_id});
+  var html=`<div style="display:flex;gap:10px;align-items:center;padding:12px;background:var(--tint,#faf5ff);border-radius:8px;margin-bottom:14px"><div style="width:48px;height:48px;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px">${getEmoji(mn)}</div><div><div style="font-weight:600">${mn} · ${card.name}</div><div style="font-size:12px;color:var(--muted)">${gn?gn.name:''}${card.series?' · '+card.series:''}</div></div></div><div class="form-group"><label>💰 价格（元）</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(function(s){return `<option>${s}</option>`}).join('')}</select></div><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><textarea id="recNote" rows="2" placeholder="如：走代购"></textarea></div><button class="btn-main" onclick="saveRecord('${card.id}')">✅ 记入卡册</button>`;
+  openModal('📝 记入卡册',html);
 }
 
 // ═══════════════════ 从卡册直接录入 ═══════════════════
