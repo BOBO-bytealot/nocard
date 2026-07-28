@@ -224,12 +224,9 @@ async function loadData(){
   if(needMembers) staticPromises.push(supaGet('members',{order:'sort_order'}));
   if(needUsers) staticPromises.push(supaGet('users'));
 
-  // cards 只拉最近100张，records 只拉当前用户
+  // cards/records 全部交给 refreshCurrentData 处理
   var uid=localStorage.getItem('kcard_user_id');
-  var myGid=getUserGroupId();
-  var cardQuery=myGid?supaGet('cards',{order:'created_at.desc',limit:CARD_PAGE_SIZE,eq:{group_id:myGid}}):supaGet('cards',{order:'created_at.desc',limit:CARD_PAGE_SIZE});
   var dynamicPromises=[
-    cardQuery,
     supaGet('invite_codes',{limit:1}).then(function(r){ return {data:(r.data&&r.data[0])||null} })
   ];
   if(uid) dynamicPromises.push(supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}));
@@ -241,10 +238,9 @@ async function loadData(){
   if(needGroups){ groups=staticResults[si].data||[]; _cacheSet('groups',groups); si++ }
   if(needMembers){ members=staticResults[si].data||[]; _cacheSet('members',members); si++ }
   if(needUsers){ users=staticResults[si].data||[]; _cacheSet('users',users); si++ }
-  cards=dynamicResults[0].data||[];
-  if(!cards.length) console.log('CARDS_QUERY_RESULT',JSON.stringify(dynamicResults[0]));
-  var inviteData=dynamicResults[1].data;
-  records=dynamicResults[2].data||[];
+  // cards 留空，refreshCurrentData 会填充
+  var inviteData=dynamicResults[0].data;
+  records=dynamicResults[1].data||[];
   if(!inviteData){
     var code='KARD-'+Math.random().toString(36).substring(2,6).toUpperCase();
     await supaInsert('invite_codes',{code:code,used:false});
@@ -1007,6 +1003,8 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModa
   try{
     console.log('INIT START');
     await loadData();
+    // 第一次打开：再跑一次 refresh 确保 cards/records 获取完整（跟点击刷新按钮走同一路径）
+    await refreshCurrentData();
     console.log('LOADED groups=', groups.length, 'cards=', cards.length, 'records=', records.length, 'users=', users.length);
     render();
     console.log('RENDER DONE');
