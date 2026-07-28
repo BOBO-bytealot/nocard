@@ -204,10 +204,15 @@ async function loadData(){
   // cards 只拉最近100张，records 只拉当前用户
   var uid=localStorage.getItem('kcard_user_id');
   var myGid=getUserGroupId();
-  var cardUrl=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
-  var cardResp=await fetch(cardUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-  var cardData=await cardResp.json();
-  var cardQuery={data:Array.isArray(cardData)?cardData:[]};
+  // [DEBUG] 先查全部 cards 再按 group_id 过滤
+  var allCardUrl=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE;
+  var allResp=await fetch(allCardUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+  var allData=await allResp.json();
+  var gidCardUrl=myGid?SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+'&group_id=eq.'+encodeURIComponent(myGid):'';
+  var gidResp=gidCardUrl?await fetch(gidCardUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}):null;
+  var gidData=gidResp?await gidResp.json():null;
+  window.__cardsDebug={allStatus:allResp.status,allCount:Array.isArray(allData)?allData.length:'not-array',gidStatus:gidResp?gidResp.status:'nq',gidCount:Array.isArray(gidData)?gidData.length:'nq'};
+  var cardQuery={data:Array.isArray(allData)?allData:[]};
   var dynamicPromises=[
     cardQuery,
     sb.from('invite_codes').select('*').limit(1).maybeSingle()
@@ -322,7 +327,7 @@ function renderExplore(){
   var allSeries=[...new Set(filteredCards.map(c=>c.series).filter(Boolean))];
   var html=`<div class="manage-bar"><span class="count">📚 ${filteredGroups.length}个团体 · ${filteredCards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
   html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
-  if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p><p style="font-size:11px;margin-top:8px">调试: cards=${cards.length} gid=${gid||'null'} user=${currentUser?currentUser.name:'null'} groups=${groups.length} members=${members.length} users=${users.length}</p></div>`; return html }
+  if(!filteredCards.length){ var dbg=window.__cardsDebug||{}; html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p><p style="font-size:11px;margin-top:8px">调试: cards=${cards.length} gid=${gid||'null'} user=${currentUser?currentUser.name:'null'} groups=${groups.length} members=${members.length} users=${users.length} all=${dbg.allStatus||'?'}/${dbg.allCount||'?'} gidF=${dbg.gidStatus||'?'}/${dbg.gidCount||'?'}</p></div>`; return html }
   if(currentView==='member') html+=renderByMember(filteredCards,founder);
   else html+=renderBySeries(filteredCards);
   if(_cardsHasMore && currentTab==='explore'){
