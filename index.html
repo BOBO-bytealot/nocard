@@ -169,7 +169,7 @@ var SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ═══════════════════ 数据常量 ═══════════════════
-var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','崔韩率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
+var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
 var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
 var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
@@ -316,7 +316,7 @@ function renderExplore(){
   var allSeries=[...new Set(filteredCards.map(c=>c.series).filter(Boolean))];
   var html=`<div class="manage-bar"><span class="count">📚 ${filteredGroups.length}个团体 · ${filteredCards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
   html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
-  if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
+  if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p><p style="font-size:11px;margin-top:8px">调试: cards=${cards.length} gid=${gid||'null'} user=${currentUser?currentUser.name:'null'}</p></div>`; return html }
   if(currentView==='member') html+=renderByMember(filteredCards,founder);
   else html+=renderBySeries(filteredCards);
   if(_cardsHasMore && currentTab==='explore'){
