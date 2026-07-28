@@ -178,17 +178,17 @@ function supaGet(table,opts){
   return fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(!r.ok) return {data:null,error:{message:'HTTP '+r.status}}; return r.json().then(function(d){ return {data:d instanceof Array?d:null,error:null} }) }).catch(function(e){ return {data:null,error:e} });
 }
 function supaInsert(table,data){
-  return fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)}).then(function(r){ return {error:r.ok?null:{message:'HTTP '+r.status},data:null} }).catch(function(e){ return {error:e} });
+  return fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null,data:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
 }
 function supaUpdate(table,filter,data){
   var u=SUPABASE_URL+'/rest/v1/'+table;
   for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
-  return fetch(u,{method:'PATCH',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)}).then(function(r){ return {error:r.ok?null:{message:'HTTP '+r.status}} }).catch(function(e){ return {error:e} });
+  return fetch(u,{method:'PATCH',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
 }
 function supaDelete(table,filter){
   var u=SUPABASE_URL+'/rest/v1/'+table;
   for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
-  return fetch(u,{method:'DELETE',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ return {error:r.ok?null:{message:'HTTP '+r.status}} }).catch(function(e){ return {error:e} });
+  return fetch(u,{method:'DELETE',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
 }
 
 // ═══════════════════ 数据常量 ═══════════════════
@@ -247,7 +247,7 @@ async function loadData(){
   records=dynamicResults[2].data||[];
   if(!inviteData){
     var code='KARD-'+Math.random().toString(36).substring(2,6).toUpperCase();
-    await sb.from('invite_codes').insert({code:code,used:false});
+    await supaInsert('invite_codes',{code:code,used:false});
     window._inviteCode=code;
   } else { window._inviteCode=inviteData.code }
 
@@ -520,8 +520,8 @@ function closeModal(){ document.getElementById('modal').classList.add('hidden') 
 async function confirmDelete(event,type,id){
   event.stopPropagation(); var btn=event.target;
   if(btn.classList.contains('confirming')){
-    if(type==='card'){ await sb.from('cards').delete().eq('id',id); await sb.from('records').delete().eq('card_id',id); showToast('🗑️ 卡片已删除') }
-    else { await sb.from('records').delete().eq('id',id); showToast('🗑️ 记录已删除') }
+    if(type==='card'){ await supaDelete('cards',{id:id}); await supaDelete('records',{card_id:id}); showToast('🗑️ 卡片已删除') }
+    else { await supaDelete('records',{id:id}); showToast('🗑️ 记录已删除') }
     await refreshCurrentData();
   } else { btn.classList.add('confirming'); btn.textContent='确认?'; setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000) }
 }
@@ -538,7 +538,7 @@ async function doLogin(){
   if(code!==window._inviteCode){ showToast('❌ 邀请码不对'); return }
   if(users.find(u=>u.name===name)){ showToast('⚠️ 昵称已存在'); return }
   var id='u'+Date.now();
-  var r=await sb.from('users').insert({id:id,name:name,role:'member'});
+  var r=await supaInsert('users',{id:id,name:name,role:'member'});
   if(r.error){ showToast('注册失败: '+r.error.message); return }
   currentUser={id,name,role:'member'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('🎉 欢迎 '+name+'！');
@@ -549,7 +549,7 @@ async function doFirstLogin(){
   var name=document.getElementById('loginName').value.trim();
   if(!name){ showToast('请输入昵称'); return }
   var id='u'+Date.now();
-  await sb.from('users').insert({id:id,name:name,role:'founder'});
+  await supaInsert('users',{id:id,name:name,role:'founder'});
   currentUser={id,name,role:'founder'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('👑 '+name+' 成为创始人！');
   await refreshCurrentData();
@@ -568,14 +568,14 @@ function openProfilePanel(){
 async function promoteUser(uid){
   var u=users.find(x=>x.id===uid);
   if(!u) return;
-  await sb.from('users').update({role:'founder'}).eq('id',uid);
+  await supaUpdate('users',{id:uid},{role:'founder'});
   showToast('⬆️ '+u.name+' 已升级'); closeModal(); await refreshCurrentData();
 }
 async function removeUser(uid){
   var u=users.find(x=>x.id===uid);
   if(!u||!confirm('确定移除 '+u.name+'？')) return;
-  await sb.from('users').delete().eq('id',uid);
-  await sb.from('records').delete().eq('user_id',uid);
+  await supaDelete('users',{id:uid});
+  await supaDelete('records',{user_id:uid});
   showToast('🗑️ 已移除'); closeModal(); await refreshCurrentData();
 }
 function switchUserMenu(){
@@ -723,7 +723,7 @@ async function doAiSave(parsed){
     created_by:currentUser.id
   };
 
-  var r1=await sb.from('cards').insert(cardData);
+  var r1=await supaInsert('cards',cardData);
   if(r1.error){ showToast('添加失败: '+r1.error.message); return }
   closeModal(); showToast('✅ 已录入卡库：'+parsed.name);
   await refreshCurrentData();
@@ -815,9 +815,9 @@ async function saveMyCard(){
   var cid='c'+Date.now();
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
   var gid=getUserGroupId()||'seventeen';
-  var r=await sb.from('cards').insert({id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -831,9 +831,9 @@ async function saveMyCortisCard(){
   if(!name){ showToast('请填写卡名'); return }
   if(!price){ showToast('请填写价格'); return }
   var cid='c'+Date.now();
-  var r=await sb.from('cards').insert({id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await supaInsert('cards',{id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
+  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -888,7 +888,7 @@ async function saveCard(){
   // 图片存 base64 在 image_url 里（小图用 <10MB 够用）
   // 新品类/新系列自动入库（下次显示在选项中）
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await sb.from('cards').insert({id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await supaInsert('cards',{id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已添加');
   await refreshCurrentData();
@@ -923,7 +923,7 @@ async function saveEditCard(cardId){
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await sb.from('cards').update({group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null}).eq('id',cardId);
+  var r=await supaUpdate('cards',{id:cardId},{group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null});
   if(r.error){ showToast('更新失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已更新');
   await refreshCurrentData();
@@ -943,7 +943,7 @@ async function saveRecord(cardId){
   var date=document.getElementById('recDate').value;
   var note=document.getElementById('recNote').value.trim();
   if(!price){ showToast('请填写价格'); return }
-  var r=await sb.from('records').insert({id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r=await supaInsert('records',{id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   closeModal(); showToast('✅ 已记入卡册');
   await refreshCurrentData();
@@ -993,7 +993,7 @@ function editMyRecord(rid){
 async function saveMyRecord(rid){
   var price=parseFloat(document.getElementById('editRecPrice').value)||0;
   var status=document.getElementById('editRecStatus').value;
-  await sb.from('records').update({price:price,status:status}).eq('id',rid);
+  await supaUpdate('records',{id:rid},{price:price,status:status});
   closeModal(); showToast('💾 已保存');
   await refreshCurrentData();
 }
