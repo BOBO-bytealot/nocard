@@ -811,7 +811,7 @@ async function saveMyCard(){
   var cid='c'+Date.now();
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
   var gid=getUserGroupId()||'seventeen';
-  var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid||null,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
