@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>批量导入卡册</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{--purple:#6d28d9;--pl:#8b5cf6;--bg:#f5f0eb;--card:#fff;--text:#333;--muted:#888;--border:#e8e0d8;--r:12px;--rs:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);max-width:640px;margin:0 auto;padding:16px;min-height:100vh}
+.nav{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;padding:12px 16px;border-radius:0 0 var(--r) var(--r);display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.nav h1{font-size:18px;font-weight:600}
+.back-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 12px;border-radius:var(--rs);font-size:13px;cursor:pointer;text-decoration:none}
+.section{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.section h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--purple)}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:14px;background:#fff}
+.form-group textarea{resize:vertical;min-height:60px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dropzone{border:2px dashed var(--border);border-radius:var(--r);padding:30px;text-align:center;cursor:pointer;transition:.2s;background:#faf8f5}
+.dropzone:hover,.dropzone.dragover{border-color:var(--pl);background:#ede9fe}
+.dropzone .emoji{font-size:36px;margin-bottom:8px}
+.dropzone p{font-size:13px;color:var(--muted)}
+.dropzone input{display:none}
+.preview-img{max-width:100%;max-height:300px;border-radius:var(--rs);display:none;margin-top:10px}
+.grid-config{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.grid-config input{width:70px;text-align:center}
+.member-grid{display:grid;gap:10px;margin-top:12px}
+.member-cell{border:2px solid var(--border);border-radius:var(--rs);padding:10px;background:#faf8f5;cursor:pointer;transition:.2s;position:relative;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.member-cell:hover{border-color:var(--pl)}
+.member-cell.selected{border-color:var(--purple);background:#ede9fe}
+.member-cell img{width:100%;height:auto;max-height:180px;object-fit:contain;border-radius:var(--rs);margin-bottom:6px}
+.member-cell .name{font-size:12px;font-weight:600}
+.member-cell .pos{font-size:10px;color:var(--muted);position:absolute;top:4px;left:6px}
+.member-cell select{width:100%;margin-top:4px;font-size:12px;padding:4px}
+.actions{display:flex;gap:10px;margin-top:16px;position:sticky;bottom:16px;z-index:90}
+.actions button{flex:1;padding:14px;border:none;border-radius:var(--r);font-size:15px;font-weight:600;cursor:pointer}
+.btn-primary{background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff}
+.btn-secondary{background:#fff;color:var(--purple);border:1px solid var(--pl)!important}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.log{background:#1f2937;color:#e5e7eb;border-radius:var(--r);padding:12px;font-family:monospace;font-size:12px;max-height:200px;overflow-y:auto;margin-top:12px;white-space:pre-wrap}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:200;display:none}
+.group-card-options{display:flex;gap:10px;align-items:center}
+.group-card-options label{font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>📦 批量导入卡册</h1>
+  <span></span>
+</div>
+
+<div class="section">
+  <h2>1. 选择组合</h2>
+  <div class="form-group">
+    <label>组合</label>
+    <select id="groupSelect"><option value="">加载中...</option></select>
+  </div>
+  <div class="row">
+    <div class="form-group"><label>系列名</label><input type="text" id="seriesName" placeholder="如：骰子版专卡"></div>
+    <div class="form-group"><label>卡类型</label><input type="text" id="cardType" placeholder="如：固卡" value="固卡"></div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>2. 上传合照</h2>
+  <div class="dropzone" id="dropzone">
+    <div class="emoji">🖼️</div>
+    <p>点击或拖拽图片到这里</p>
+    <input type="file" id="imageInput" accept="image/*">
+  </div>
+  <img id="sourcePreview" class="preview-img">
+  <div class="row" style="margin-top:12px">
+    <div class="form-group"><label>裁剪行数</label><input type="number" id="gridRows" value="2" min="1"></div>
+    <div class="form-group"><label>裁剪列数</label><input type="number" id="gridCols" value="3" min="1"></div>
+  </div>
+  <div class="form-group">
+    <label>成员顺序（按格子从左到右、从上到下，每行一个名字）</label>
+    <textarea id="memberOrder" placeholder="赵雨凡
+金主训
+马丁
+严成玹
+安乾镐"></textarea>
+  </div>
+  <button class="btn-secondary" onclick="generateGrid()" style="width:100%;padding:12px;border-radius:10px;border:none;font-size:14px;color:var(--purple);background:#ede9fe;font-weight:600;cursor:pointer">生成裁剪预览</button>
+</div>
+
+<div class="section hide" id="cropSection">
+  <h2>3. 裁剪预览</h2>
+  <div id="memberGrid" class="member-grid"></div>
+</div>
+
+<div class="section hide" id="groupCardSection">
+  <h2>4. 团卡设置</h2>
+  <div class="group-card-options">
+    <label><input type="radio" name="groupCard" value="none" checked> 不要团卡</label>
+    <label><input type="radio" name="groupCard" value="full"> 用原图当团卡</label>
+    <label><input type="radio" name="groupCard" value="separate"> 单独上传团卡</label>
+  </div>
+  <div class="dropzone hide" id="groupDropzone" style="margin-top:10px">
+    <div class="emoji">🎲</div>
+    <p>点击或拖拽团卡图</p>
+    <input type="file" id="groupImageInput" accept="image/*">
+  </div>
+  <img id="groupPreview" class="preview-img">
+</div>
+
+<div class="actions">
+  <button class="btn-secondary" onclick="location.href='index.html'">取消</button>
+  <button class="btn-primary" id="importBtn" onclick="startImport()" disabled>开始导入</button>
+</div>
+
+<div class="section hide" id="logSection">
+  <h2>导入日志</h2>
+  <div class="log" id="log"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL='https://neolxiocucigqrrgueim.supabase.co';
+const SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let groups=[], members=[], sourceImage=null, groupImage=null, cropData=[];
+
+function log(msg){ 
+  const el=document.getElementById('log');
+  const s=document.getElementById('logSection');
+  s.classList.remove('hide');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2500); }
+
+async function loadGroups(){
+  const sel=document.getElementById('groupSelect');
+  const {data,error}=await sb.from('groups').select('*').order('name');
+  if(error){ showToast('加载组合失败'); return; }
+  groups=data||[];
+  const {data:mem,error:merr}=await sb.from('members').select('*').order('name');
+  if(merr){ showToast('加载成员失败'); return; }
+  members=mem||[];
+  sel.innerHTML='<option value="">请选择组合</option>'+groups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+}
+
+document.getElementById('dropzone').addEventListener('click',()=>document.getElementById('imageInput').click());
+document.getElementById('imageInput').addEventListener('change',e=>handleImage(e.target.files[0],'source'));
+['dragenter','dragover','dragleave','drop'].forEach(evt=>{
+  document.getElementById('dropzone').addEventListener(evt,e=>{e.preventDefault();e.stopPropagation();},false);
+});
+document.getElementById('dropzone').addEventListener('drop',e=>handleImage(e.dataTransfer.files[0],'source'));
+
+document.getElementById('groupDropzone').addEventListener('click',()=>document.getElementById('groupImageInput').click());
+document.getElementById('groupImageInput').addEventListener('change',e=>handleImage(e.target.files[0],'group'));
+['dragenter','dragover','dragleave','drop'].forEach(evt=>{
+  document.getElementById('groupDropzone').addEventListener(evt,e=>{e.preventDefault();e.stopPropagation();},false);
+});
+document.getElementById('groupDropzone').addEventListener('drop',e=>handleImage(e.dataTransfer.files[0],'group'));
+
+document.querySelectorAll('input[name="groupCard"]').forEach(r=>{
+  r.addEventListener('change',()=>{
+    document.getElementById('groupDropzone').classList.toggle('hide',r.value!=='separate');
+    document.getElementById('groupPreview').classList.add('hide');
+    groupImage=null;
+  });
+});
+
+function handleImage(file,type){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      if(type==='source'){ sourceImage=img; document.getElementById('sourcePreview').src=img.src; document.getElementById('sourcePreview').style.display='block'; }
+      else { groupImage=img; document.getElementById('groupPreview').src=img.src; document.getElementById('groupPreview').style.display='block'; }
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function dataURLToImage(dataURL){
+  return new Promise((resolve)=>{ const img=new Image(); img.onload=()=>resolve(img); img.src=dataURL; });
+}
+
+async function cropImage(img,row,col,rows,cols,outputW,outputH){
+  const canvas=document.createElement('canvas');
+  canvas.width=outputW; canvas.height=outputH;
+  const ctx=canvas.getContext('2d');
+  const sx=Math.round(col*img.width/cols);
+  const sy=Math.round(row*img.height/rows);
+  const sw=Math.round(img.width/cols);
+  const sh=Math.round(img.height/rows);
+  ctx.drawImage(img,sx,sy,sw,sh,0,0,outputW,outputH);
+  return canvas.toDataURL('image/jpeg',0.92);
+}
+
+async function generateGrid(){
+  if(!sourceImage){ showToast('请先上传合照'); return; }
+  const rows=parseInt(document.getElementById('gridRows').value)||1;
+  const cols=parseInt(document.getElementById('gridCols').value)||1;
+  const names=document.getElementById('memberOrder').value.split(/\n|,/).map(s=>s.trim()).filter(Boolean);
+  const grid=document.getElementById('memberGrid');
+  grid.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+  grid.innerHTML='';
+  cropData=[];
+  const groupId=document.getElementById('groupSelect').value;
+  const groupMembers=members.filter(m=>m.group_id===groupId);
+  const outputW=409, outputH=604;
+  
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const idx=r*cols+c;
+      const name=names[idx]||`位置${idx+1}`;
+      const cell=document.createElement('div');
+      cell.className='member-cell';
+      cell.dataset.idx=idx;
+      cell.onclick=()=>{ cell.classList.toggle('selected'); };
+      const cropURL=await cropImage(sourceImage,r,c,rows,cols,outputW,outputH);
+      const matched=groupMembers.find(m=>m.name===name)||groupMembers[idx];
+      cropData[idx]={url:cropURL,name:name,row:r,col:c,idx:idx,matched:matched};
+      cell.innerHTML=`<span class="pos">${r+1}×${c+1}</span><img src="${cropURL}"><div class="name">${name}</div>`+
+        `<select onchange="cropData[${idx}].matchedId=this.value">`+
+        `<option value="">匹配成员</option>`+
+        groupMembers.map(m=>`<option value="${m.id}" ${matched&&m.id===matched.id?'selected':''}>${m.name} ${m.emoji||''}</option>`).join('')+
+        `</select>`;
+      if(matched) cropData[idx].matchedId=matched.id;
+      grid.appendChild(cell);
+    }
+  }
+  document.getElementById('cropSection').classList.remove('hide');
+  document.getElementById('groupCardSection').classList.remove('hide');
+  document.getElementById('importBtn').disabled=false;
+  showToast('预览已生成');
+}
+
+async function compressBase64(dataURL,maxChars=80000){
+  let quality=0.92;
+  let img=await dataURLToImage(dataURL);
+  let w=img.width, h=img.height;
+  while(true){
+    const canvas=document.createElement('canvas');
+    canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(img,0,0,w,h);
+    const out=canvas.toDataURL('image/jpeg',quality);
+    if(out.length<=maxChars || (w<=200&&quality<=0.5)) return out;
+    if(quality>0.5) quality-=0.1; else { w=Math.floor(w*0.85); h=Math.floor(h*0.85); }
+  }
+}
+
+async function startImport(){
+  const groupId=document.getElementById('groupSelect').value;
+  const series=document.getElementById('seriesName').value.trim();
+  const type=document.getElementById('cardType').value.trim()||'其他';
+  if(!groupId){ showToast('请选择组合'); return; }
+  if(!series){ showToast('请输入系列名'); return; }
+  if(cropData.length===0){ showToast('请先生成裁剪预览'); return; }
+  
+  const btn=document.getElementById('importBtn');
+  btn.disabled=true; btn.textContent='导入中...';
+  log('开始导入...');
+  
+  const selected=cropData.filter(c=>document.querySelector(`.member-cell[data-idx="${c.idx}"].selected`)===null);
+  if(selected.length===0){ showToast('请至少选择一个要导入的格子'); btn.disabled=false; btn.textContent='开始导入'; return; }
+  
+  const records=[];
+  const ts=Date.now();
+  for(let i=0;i<selected.length;i++){
+    const c=selected[i];
+    if(!c.matchedId){ log(`跳过：${c.name} 未匹配成员`); continue; }
+    const m=members.find(x=>x.id===c.matchedId);
+    const id='c_'+series.replace(/\s+/g,'')+'_'+m.id.split('_').pop()+'_'+ts;
+    const compressed=await compressBase64(c.url);
+    records.push({id,group_id:groupId,member_id:m.id,name:`${m.name} ${series}`,series,card_type:type,image_url:compressed,image_emoji:m.emoji||''});
+    log(`准备 ${m.name} ${series} (${compressed.length} 字符)`);
+  }
+  
+  const groupCard=document.querySelector('input[name="groupCard"]:checked').value;
+  if(groupCard==='full' && sourceImage){
+    const compressed=await compressBase64(sourceImage.src);
+    const g=groups.find(x=>x.id===groupId);
+    records.push({id:'c_'+series.replace(/\s+/g,'')+'_group_'+ts,group_id:groupId,member_id:null,name:`${g?g.name:groupId} ${series}团卡`,series,card_type:type,image_url:compressed,image_emoji:'👥'});
+    log(`准备团卡（原图）(${compressed.length} 字符)`);
+  }else if(groupCard==='separate' && groupImage){
+    const compressed=await compressBase64(groupImage.src);
+    const g=groups.find(x=>x.id===groupId);
+    records.push({id:'c_'+series.replace(/\s+/g,'')+'_group_'+ts,group_id:groupId,member_id:null,name:`${g?g.name:groupId} ${series}团卡`,series,card_type:type,image_url:compressed,image_emoji:'👥'});
+    log(`准备团卡（单独上传）(${compressed.length} 字符)`);
+  }
+  
+  if(records.length===0){ showToast('没有可导入的记录'); btn.disabled=false; btn.textContent='开始导入'; return; }
+  
+  const {error}=await sb.from('cards').insert(records);
+  if(error){ log('导入失败: '+error.message); showToast('导入失败'); }
+  else { log(`✅ 成功导入 ${records.length} 张卡`); showToast('导入成功'); }
+  btn.disabled=false; btn.textContent='开始导入';
+}
+
+loadGroups();
+</script>
+</body>
+</html>

@@ -168,29 +168,6 @@ var SUPABASE_URL='https://neolxiocucigqrrgueim.supabase.co';
 var SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 绕过 Supabase JS 客户端 Bug，直接调 REST API
-function supaGet(table,opts){
-  var u=SUPABASE_URL+'/rest/v1/'+table+'?select=*';
-  if(opts&&opts.order) u+='&order='+opts.order.replace(/\.desc$/,'')+(opts.asc===false||/\.desc$/.test(opts.order)?'.desc':'');
-  if(opts&&opts.limit) u+='&limit='+opts.limit;
-  if(opts&&opts.eq) for(var k in opts.eq) u+='&'+k+'=eq.'+encodeURIComponent(opts.eq[k]);
-  if(opts&&opts['in']) for(var k in opts['in']) u+='&'+k+'=in.('+opts['in'][k].map(encodeURIComponent).join(',')+')';
-  return fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(!r.ok) return {data:null,error:{message:'HTTP '+r.status}}; return r.json().then(function(d){ return {data:d instanceof Array?d:null,error:null} }) }).catch(function(e){ return {data:null,error:e} });
-}
-function supaInsert(table,data){
-  return fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null,data:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
-}
-function supaUpdate(table,filter,data){
-  var u=SUPABASE_URL+'/rest/v1/'+table;
-  for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
-  return fetch(u,{method:'PATCH',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
-}
-function supaDelete(table,filter){
-  var u=SUPABASE_URL+'/rest/v1/'+table;
-  for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
-  return fetch(u,{method:'DELETE',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
-}
-
 // ═══════════════════ 数据常量 ═══════════════════
 var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
 var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
@@ -220,16 +197,20 @@ async function loadData(){
 
   var needGroups=!groups, needMembers=!members, needUsers=!users;
   var staticPromises=[];
-  if(needGroups) staticPromises.push(supaGet('groups',{order:'sort_order'}));
-  if(needMembers) staticPromises.push(supaGet('members',{order:'sort_order'}));
-  if(needUsers) staticPromises.push(supaGet('users'));
+  if(needGroups) staticPromises.push(sb.from('groups').select('*').order('sort_order'));
+  if(needMembers) staticPromises.push(sb.from('members').select('*').order('sort_order'));
+  if(needUsers) staticPromises.push(sb.from('users').select('*'));
 
-  // cards/records 全部交给 refreshCurrentData 处理
+  // cards 只拉最近100张，records 只拉当前用户
   var uid=localStorage.getItem('kcard_user_id');
+  var myGid=getUserGroupId();
+  var cardQuery=sb.from('cards').select('*').order('created_at',{ascending:false}).limit(CARD_PAGE_SIZE);
+  if(myGid) cardQuery=cardQuery.eq('group_id',myGid);
   var dynamicPromises=[
-    supaGet('invite_codes',{limit:1}).then(function(r){ return {data:(r.data&&r.data[0])||null} })
+    cardQuery,
+    sb.from('invite_codes').select('*').limit(1).maybeSingle()
   ];
-  if(uid) dynamicPromises.push(supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}));
+  if(uid) dynamicPromises.push(sb.from('records').select('*').eq('user_id',uid).order('created_at',{ascending:false}));
   else dynamicPromises.push(Promise.resolve({data:[]}));
 
   var staticResults=await Promise.all(staticPromises);
@@ -238,12 +219,12 @@ async function loadData(){
   if(needGroups){ groups=staticResults[si].data||[]; _cacheSet('groups',groups); si++ }
   if(needMembers){ members=staticResults[si].data||[]; _cacheSet('members',members); si++ }
   if(needUsers){ users=staticResults[si].data||[]; _cacheSet('users',users); si++ }
-  // cards 留空，refreshCurrentData 会填充
-  var inviteData=dynamicResults[0].data;
-  records=dynamicResults[1].data||[];
+  cards=dynamicResults[0].data||[];
+  var inviteData=dynamicResults[1].data;
+  records=dynamicResults[2].data||[];
   if(!inviteData){
     var code='KARD-'+Math.random().toString(36).substring(2,6).toUpperCase();
-    await supaInsert('invite_codes',{code:code,used:false});
+    await sb.from('invite_codes').insert({code:code,used:false});
     window._inviteCode=code;
   } else { window._inviteCode=inviteData.code }
 
@@ -257,22 +238,19 @@ async function loadData(){
 
 async function refreshCurrentData(){
   var uid=localStorage.getItem('kcard_user_id');
-  var r1=await supaGet('users'); users=r1.data||[]; _cacheSet('users',users);
+  var r1=await sb.from('users').select('*'); users=r1.data||[]; _cacheSet('users',users);
   var myGid=getUserGroupId();
-  var cUrl=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+myGid:'');
-  var cResp=await fetch(cUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-  var cData=await cResp.json();
-  cards=Array.isArray(cData)?cData:[]; _cardsHasMore=cards.length>=CARD_PAGE_SIZE;
-  var r3=uid?await supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}):{data:[]}; records=r3.data||[];
+  var cardQuery=sb.from('cards').select('*').order('created_at',{ascending:false}).limit(CARD_PAGE_SIZE);
+  if(myGid) cardQuery=cardQuery.eq('group_id',myGid);
+  var r2=await cardQuery; cards=r2.data||[]; _cardsHasMore=(r2.data||[]).length>=CARD_PAGE_SIZE;
+  var r3=uid?await sb.from('records').select('*').eq('user_id',uid).order('created_at',{ascending:false}):{data:[]}; records=r3.data||[];
   // 确保卡册关联的 cards 也在 cards 数组里
   if(records.length){
     var existingIds={}; cards.forEach(function(c){ existingIds[c.id]=true });
     var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
     if(missingIds.length){
-      var xUrl=SUPABASE_URL+'/rest/v1/cards?select=*&id=in.('+missingIds.join(',')+')';
-      var xResp=await fetch(xUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      var xData=await xResp.json();
-      if(Array.isArray(xData)&&xData.length) cards=cards.concat(xData);
+      var extra=await sb.from('cards').select('*').in('id',missingIds);
+      if(extra.data&&extra.data.length) cards=cards.concat(extra.data);
     }
   }
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
@@ -284,10 +262,10 @@ async function loadMoreCards(){
   _cardsLoadingMore=true;
   var last=cards[cards.length-1];
   var myGid=getUserGroupId();
-  var u=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+last.created_at+(myGid?'&group_id=eq.'+myGid:'');
-  var r=await fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-  var moreData=await r.json();
-  var more=Array.isArray(moreData)?moreData:[];
+  var q=sb.from('cards').select('*').order('created_at',{ascending:false}).lt('created_at',last.created_at).limit(CARD_PAGE_SIZE);
+  if(myGid) q=q.eq('group_id',myGid);
+  var r=await q;
+  var more=r.data||[];
   cards=cards.concat(more);
   _cardsHasMore=more.length>=CARD_PAGE_SIZE;
   _cardsLoadingMore=false;
@@ -338,7 +316,7 @@ function renderExplore(){
   var allSeries=[...new Set(filteredCards.map(c=>c.series).filter(Boolean))];
   var html=`<div class="manage-bar"><span class="count">📚 ${filteredGroups.length}个团体 · ${filteredCards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
   html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
-  if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
+  if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p><p style="font-size:11px;margin-top:8px">调试: cards=${cards.length} gid=${gid||'null'} user=${currentUser?currentUser.name:'null'}</p></div>`; return html }
   if(currentView==='member') html+=renderByMember(filteredCards,founder);
   else html+=renderBySeries(filteredCards);
   if(_cardsHasMore && currentTab==='explore'){
@@ -516,8 +494,8 @@ function closeModal(){ document.getElementById('modal').classList.add('hidden') 
 async function confirmDelete(event,type,id){
   event.stopPropagation(); var btn=event.target;
   if(btn.classList.contains('confirming')){
-    if(type==='card'){ await supaDelete('cards',{id:id}); await supaDelete('records',{card_id:id}); showToast('🗑️ 卡片已删除') }
-    else { await supaDelete('records',{id:id}); showToast('🗑️ 记录已删除') }
+    if(type==='card'){ await sb.from('cards').delete().eq('id',id); await sb.from('records').delete().eq('card_id',id); showToast('🗑️ 卡片已删除') }
+    else { await sb.from('records').delete().eq('id',id); showToast('🗑️ 记录已删除') }
     await refreshCurrentData();
   } else { btn.classList.add('confirming'); btn.textContent='确认?'; setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000) }
 }
@@ -534,7 +512,7 @@ async function doLogin(){
   if(code!==window._inviteCode){ showToast('❌ 邀请码不对'); return }
   if(users.find(u=>u.name===name)){ showToast('⚠️ 昵称已存在'); return }
   var id='u'+Date.now();
-  var r=await supaInsert('users',{id:id,name:name,role:'member'});
+  var r=await sb.from('users').insert({id:id,name:name,role:'member'});
   if(r.error){ showToast('注册失败: '+r.error.message); return }
   currentUser={id,name,role:'member'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('🎉 欢迎 '+name+'！');
@@ -545,7 +523,7 @@ async function doFirstLogin(){
   var name=document.getElementById('loginName').value.trim();
   if(!name){ showToast('请输入昵称'); return }
   var id='u'+Date.now();
-  await supaInsert('users',{id:id,name:name,role:'founder'});
+  await sb.from('users').insert({id:id,name:name,role:'founder'});
   currentUser={id,name,role:'founder'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('👑 '+name+' 成为创始人！');
   await refreshCurrentData();
@@ -564,21 +542,21 @@ function openProfilePanel(){
 async function promoteUser(uid){
   var u=users.find(x=>x.id===uid);
   if(!u) return;
-  await supaUpdate('users',{id:uid},{role:'founder'});
+  await sb.from('users').update({role:'founder'}).eq('id',uid);
   showToast('⬆️ '+u.name+' 已升级'); closeModal(); await refreshCurrentData();
 }
 async function removeUser(uid){
   var u=users.find(x=>x.id===uid);
   if(!u||!confirm('确定移除 '+u.name+'？')) return;
-  await supaDelete('users',{id:uid});
-  await supaDelete('records',{user_id:uid});
+  await sb.from('users').delete().eq('id',uid);
+  await sb.from('records').delete().eq('user_id',uid);
   showToast('🗑️ 已移除'); closeModal(); await refreshCurrentData();
 }
 function switchUserMenu(){
   var opts=users.map(u=>`<div class="user-card" style="cursor:pointer" onclick="switchToUser('${u.id}')"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div></div></div>`).join('');
   document.getElementById('modalBody').innerHTML='<div style="font-weight:600;margin-bottom:8px">点击切换用户</div>'+opts;
 }
-function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; refreshCurrentData() }
+function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; render() }
 function getUserGroupId(){
   if(!currentUser) return null;
   if(currentUser.name==='二丁') return 'cortis';
@@ -670,12 +648,12 @@ async function parseAndSaveAiImport(){
 function openAiConfirm(parsed){
   var myGid=getUserGroupId()||'seventeen';
   var myMembers=members.filter(function(m){return m.group_id===myGid});
-  var memOpts='<option value="">👥 团队</option>'+myMembers.map(function(m){return `<option value="${m.id}"${m.id===parsed.member?' selected':''}>${m.name}</option>`}).join('');
+  var memOpts=myMembers.map(function(m){return `<option value="${m.id}"${m.id===parsed.member?' selected':''}>${m.name}</option>`}).join('');
   var typeOpts=CARD_TYPES.map(function(t){return `<option value="${t}"${t===parsed.card_type?' selected':''}>${t}</option>`}).join('');
   var statusOpts=STATUSES.map(function(s){return `<option value="${s}"${s===parsed.status?' selected':''}>${s}</option>`}).join('');
 
   if(isCortisUser()){
-    var html=`<div class="form-group"><label>成员</label><select id="aiConfirmMember"><option value="">👥 团队</option>${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
+    var html=`<div class="form-group"><label>成员</label><select id="aiConfirmMember"><option value="">无</option>${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
   } else {
     var html=`<div class="form-row"><div class="form-group"><label>成员 *</label><select id="aiConfirmMember">${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div></div><div class="form-row"><div class="form-group"><label>系列</label><input type="text" id="aiConfirmSeries" value="${(parsed.series||'').replace(/"/g,'&quot;')}" placeholder="可选"></div><div class="form-group"><label>品类 *</label><select id="aiConfirmType">${typeOpts}</select></div></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
   }
@@ -719,7 +697,7 @@ async function doAiSave(parsed){
     created_by:currentUser.id
   };
 
-  var r1=await supaInsert('cards',cardData);
+  var r1=await sb.from('cards').insert(cardData);
   if(r1.error){ showToast('添加失败: '+r1.error.message); return }
   closeModal(); showToast('✅ 已录入卡库：'+parsed.name);
   await refreshCurrentData();
@@ -779,7 +757,7 @@ function openMyAddCard(){
   var grpOpts=`<option value="seventeen">SEVENTEEN（13人）</option>`;
   var myGid=getUserGroupId()||'seventeen';
   var myMembers=members.filter(m=>m.group_id===myGid);
-  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option><option value="">👥 团队</option>${myMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option>${myMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
   openModal('📝 录入新卡',html);
   _formImgData='';
   setTimeout(function(){ toggleNewField('series'); toggleNewField('type') },50);
@@ -804,16 +782,16 @@ async function saveMyCard(){
   var status=document.getElementById('recStatus').value;
   var date=document.getElementById('recDate').value;
   var note=document.getElementById('recNote').value.trim();
-  if(!name||!type){ showToast('请填写卡面信息'); return }
+  if(!name||!mid||!type){ showToast('请填写卡面信息'); return }
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
   if(!price){ showToast('请填写价格'); return }
   var cid='c'+Date.now();
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
   var gid=getUserGroupId()||'seventeen';
-  var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await sb.from('cards').insert({id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -827,9 +805,9 @@ async function saveMyCortisCard(){
   if(!name){ showToast('请填写卡名'); return }
   if(!price){ showToast('请填写价格'); return }
   var cid='c'+Date.now();
-  var r=await supaInsert('cards',{id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await sb.from('cards').insert({id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -884,7 +862,7 @@ async function saveCard(){
   // 图片存 base64 在 image_url 里（小图用 <10MB 够用）
   // 新品类/新系列自动入库（下次显示在选项中）
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await supaInsert('cards',{id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await sb.from('cards').insert({id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已添加');
   await refreshCurrentData();
@@ -919,7 +897,7 @@ async function saveEditCard(cardId){
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await supaUpdate('cards',{id:cardId},{group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null});
+  var r=await sb.from('cards').update({group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null}).eq('id',cardId);
   if(r.error){ showToast('更新失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已更新');
   await refreshCurrentData();
@@ -939,7 +917,7 @@ async function saveRecord(cardId){
   var date=document.getElementById('recDate').value;
   var note=document.getElementById('recNote').value.trim();
   if(!price){ showToast('请填写价格'); return }
-  var r=await supaInsert('records',{id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r=await sb.from('records').insert({id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   closeModal(); showToast('✅ 已记入卡册');
   await refreshCurrentData();
@@ -989,7 +967,7 @@ function editMyRecord(rid){
 async function saveMyRecord(rid){
   var price=parseFloat(document.getElementById('editRecPrice').value)||0;
   var status=document.getElementById('editRecStatus').value;
-  await supaUpdate('records',{id:rid},{price:price,status:status});
+  await sb.from('records').update({price:price,status:status}).eq('id',rid);
   closeModal(); showToast('💾 已保存');
   await refreshCurrentData();
 }
@@ -1003,8 +981,6 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModa
   try{
     console.log('INIT START');
     await loadData();
-    // 第一次打开：再跑一次 refresh 确保 cards/records 获取完整（跟点击刷新按钮走同一路径）
-    await refreshCurrentData();
     console.log('LOADED groups=', groups.length, 'cards=', cards.length, 'records=', records.length, 'users=', users.length);
     render();
     console.log('RENDER DONE');

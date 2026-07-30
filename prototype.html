@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>小卡管理 - 原型草图 v3</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f5f0eb; color:#333; max-width:480px; margin:0 auto; min-height:100vh; }
+.nav { background:linear-gradient(135deg,#8b5cf6,#6d28d9); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+.nav h1 { font-size:18px; font-weight:600; }
+.nav-actions { display:flex; gap:8px; }
+.nav-btn { background:rgba(255,255,255,0.2); border:none; color:#fff; padding:6px 12px; border-radius:8px; font-size:13px; cursor:pointer; }
+.nav-btn.active { background:rgba(255,255,255,0.35); font-weight:600; }
+.main { padding:16px; padding-bottom:80px; }
+.view-toggle { display:flex; background:#e8e0d8; border-radius:10px; padding:3px; margin-bottom:16px; }
+.view-toggle button { flex:1; border:none; background:none; padding:10px; border-radius:8px; font-size:14px; cursor:pointer; color:#666; }
+.view-toggle button.active { background:#fff; color:#6d28d9; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+.card { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; display:flex; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.06); position:relative; }
+.card-img { width:72px; height:72px; border-radius:8px; background:#f0ebe3; flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; }
+.card-img img { width:100%; height:100%; object-fit:cover; }
+.card-img .placeholder { font-size:28px; }
+.card-info { flex:1; min-width:0; }
+.card-info h4 { font-size:15px; font-weight:600; margin-bottom:3px; }
+.card-info .meta { font-size:12px; color:#888; line-height:1.5; }
+.card-info .price { font-size:13px; font-weight:600; color:#e74c3c; margin-top:3px; }
+.tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; margin-right:4px; }
+.tag-member { background:#ede9fe; color:#6d28d9; }
+.tag-group { background:#dbeafe; color:#2563eb; }
+.tag-type { background:#fce7f3; color:#be185d; }
+.tag-series { background:#d1fae5; color:#065f46; }
+.tag-status { padding:2px 10px; border-radius:10px; font-size:11px; font-weight:600; }
+.status-shipping { background:#fef3c7; color:#d97706; }
+.status-arrived { background:#d1fae5; color:#065f46; }
+.status-waiting { background:#fee2e2; color:#dc2626; }
+.stats-bar { background:#fff; border-radius:12px; padding:14px; margin-bottom:16px; display:flex; justify-content:space-around; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+.stat-item { flex:1; }
+.stat-num { font-size:20px; font-weight:700; color:#6d28d9; }
+.stat-label { font-size:11px; color:#888; margin-top:2px; }
+.stat-divider { width:1px; background:#eee; }
+.bottom-nav { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:480px; background:#fff; display:flex; border-top:1px solid #eee; z-index:100; }
+.bottom-nav button { flex:1; border:none; background:none; padding:10px 0 6px; font-size:11px; color:#999; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.bottom-nav button .icon { font-size:20px; }
+.bottom-nav button.active { color:#6d28d9; }
+.hidden { display:none !important; }
+
+/* ===== 折叠分组 ===== */
+.group-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:#fff; border-radius:12px; margin-bottom:8px; box-shadow:0 1px 3px rgba(0,0,0,0.06); cursor:pointer; }
+.group-header:active { background:#faf5ff; }
+.group-header .member-info { flex:1; }
+.group-header .member-name { font-size:15px; font-weight:600; }
+.group-header .member-meta { font-size:12px; color:#888; }
+.group-header .expand-icon { font-size:14px; color:#8b5cf6; transition:transform .2s; min-width:20px; text-align:right; }
+.group-header.collapsed .expand-icon { transform:rotate(-90deg); }
+.group-cards { overflow:hidden; transition:max-height .3s ease; }
+.group-cards.collapsed { max-height:0 !important; }
+.group-cards .card { margin-left:8px; border-left:3px solid #ede9fe; border-radius:0 12px 12px 0; }
+
+/* ===== 快速跳转导航 ===== */
+.jump-nav { display:flex; gap:6px; overflow-x:auto; padding:0 2px 12px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; }
+.jump-nav::-webkit-scrollbar { display:none; }
+.jump-chip { flex-shrink:0; padding:7px 14px; border-radius:16px; font-size:12px; font-weight:600; background:#fff; color:#666; border:none; cursor:pointer; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+.jump-chip:active { background:#ede9fe; color:#6d28d9; }
+.jump-chip .badge { display:inline-block; background:#e8e0d8; color:#888; font-size:10px; padding:1px 6px; border-radius:8px; margin-left:4px; }
+
+/* ===== 系列卡片（带缩略图网格） ===== */
+.series-card { background:#fff; border-radius:12px; padding:14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.06); cursor:pointer; }
+.series-card:active { background:#faf5ff; }
+.series-card .series-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.series-card .series-header h4 { font-size:15px; font-weight:600; }
+.series-card .series-header .series-count { font-size:11px; color:#888; }
+.series-thumbs { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
+.series-thumbs::-webkit-scrollbar { height:4px; }
+.series-thumbs::-webkit-scrollbar-thumb { background:#e0d8cc; border-radius:2px; }
+.series-thumb-item { flex-shrink:0; text-align:center; width:68px; }
+.series-thumb-img { width:68px; height:68px; border-radius:8px; background:#f0ebe3; display:flex; align-items:center; justify-content:center; font-size:24px; margin-bottom:4px; overflow:hidden; }
+.series-thumb-img img { width:100%; height:100%; object-fit:cover; border-radius:8px; }
+.series-thumb-name { font-size:10px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:68px; }
+
+/* ===== 弹窗/表单（同上） ===== */
+.overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:200; display:flex; align-items:flex-end; justify-content:center; }
+.panel { background:#fff; width:100%; max-width:480px; max-height:85vh; border-radius:20px 20px 0 0; display:flex; flex-direction:column; overflow:hidden; }
+.panel-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #f0ebe3; }
+.panel-header h3 { font-size:17px; }
+.panel-close { background:none; border:none; font-size:20px; cursor:pointer; color:#999; }
+.panel-body { padding:16px 20px; overflow-y:auto; flex:1; }
+.form-group { margin-bottom:14px; }
+.form-group label { display:block; font-size:12px; font-weight:600; color:#666; margin-bottom:4px; }
+.form-group input, .form-group select { width:100%; padding:10px 12px; border:1.5px solid #e8e0d8; border-radius:8px; font-size:14px; background:#fafafa; }
+.form-group input:focus, .form-group select:focus { outline:none; border-color:#8b5cf6; background:#fff; }
+.form-row { display:flex; gap:8px; }
+.form-row .form-group { flex:1; }
+.btn-primary { width:100%; padding:14px; background:linear-gradient(135deg,#8b5cf6,#6d28d9); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; margin-top:8px; }
+
+/* ===== 图片上传 ===== */
+.img-upload-area { width:100%; min-height:160px; border:2px dashed #d4c5f9; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:#faf5ff; overflow:hidden; }
+.img-upload-placeholder { display:flex; flex-direction:column; align-items:center; gap:8px; padding:20px; }
+.img-upload-preview { width:100%; max-height:240px; object-fit:contain; border-radius:8px; }
+.hidden { display:none !important; }
+.mini-photo-btn { flex:1; padding:10px; border:1px solid #e8e0d8; border-radius:8px; background:#fff; font-size:13px; cursor:pointer; text-align:center; }
+
+/* ===== 人员管理 ===== */
+.user-card { background:#fafafa; border-radius:12px; padding:14px; margin-bottom:8px; display:flex; align-items:center; gap:12px; }
+.user-avatar { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; background:#f0ebe3; }
+.user-info { flex:1; }
+.user-name { font-size:14px; font-weight:600; }
+.user-id { font-size:11px; color:#888; }
+.user-role { font-size:12px; padding:3px 10px; border-radius:10px; }
+.role-creator { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#fff; font-weight:600; }
+.role-member { background:#f0ebe3; color:#666; }
+.role-actions { display:flex; gap:6px; }
+.role-btn { padding:6px 12px; border-radius:8px; font-size:12px; border:none; cursor:pointer; }
+.btn-promote { background:#ede9fe; color:#6d28d9; }
+.btn-remove { background:#fee2e2; color:#dc2626; }
+.invite-box { background:#faf5ff; border:2px dashed #c4b5fd; border-radius:12px; padding:20px; text-align:center; margin-bottom:16px; }
+.invite-code { font-size:32px; font-weight:800; letter-spacing:4px; color:#6d28d9; margin:8px 0; }
+.invite-hint { font-size:11px; color:#888; }
+
+/* 删除按钮 */
+.card-delete { position:absolute; top:8px; right:8px; width:28px; height:28px; border-radius:50%; border:none; background:rgba(0,0,0,0.05); color:#999; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.card-delete.confirming { background:#fee2e2; color:#dc2626; }
+
+/* 图片弹窗 */
+.img-modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:250; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+.img-modal img { max-width:92%; max-height:75vh; border-radius:12px; object-fit:contain; }
+.img-modal .img-caption { color:#ccc; margin-top:12px; font-size:14px; text-align:center; }
+.img-modal .img-close { position:absolute; top:16px; right:16px; color:#fff; font-size:30px; cursor:pointer; background:none; border:none; }
+
+/* 登录条 + 管理条 */
+.login-banner { background:#fff; border-radius:12px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.06); cursor:pointer; }
+.login-banner .avatar { width:36px; height:36px; border-radius:50%; background:#ede9fe; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.login-banner .name { font-size:14px; font-weight:600; }
+.login-banner .role { font-size:11px; color:#888; }
+.badge-creator { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#fff; font-size:10px; padding:3px 8px; border-radius:8px; margin-left:6px; }
+.manage-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:8px 12px; background:#fff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+.manage-bar .count { font-size:12px; color:#888; }
+.manage-actions { display:flex; gap:6px; }
+.manage-actions button { padding:6px 12px; border-radius:8px; font-size:12px; border:none; cursor:pointer; }
+.btn-add { background:#ede9fe; color:#6d28d9; font-weight:600; }
+.btn-manage { background:#dbeafe; color:#2563eb; }
+
+/* 展开/折叠全部 */
+.toggle-all { font-size:12px; color:#8b5cf6; cursor:pointer; margin-bottom:8px; display:inline-block; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <h1>🃏 小卡共享</h1>
+  <div class="nav-actions">
+    <button class="nav-btn active" onclick="showTab('explore')" id="nav-explore">卡库</button>
+    <button class="nav-btn" onclick="showTab('my')" id="nav-my">我的卡册</button>
+  </div>
+</nav>
+
+<div class="main">
+  <!-- 当前用户 -->
+  <div class="login-banner" onclick="openUserList()">
+    <div class="avatar">😎</div>
+    <div style="flex:1">
+      <div class="name">bobo <span class="badge-creator">创始人</span></div>
+      <div class="role">#001 · 5张 · 2张在途</div>
+    </div>
+    <span style="font-size:12px; color:#888;">管理&gt;</span>
+  </div>
+
+  <!-- ======================== 卡库 ======================== -->
+  <div id="tab-explore">
+    <div class="manage-bar">
+      <span class="count">📚 3个团体 · 15张卡</span>
+      <div class="manage-actions">
+        <button class="btn-add" onclick="openAddCard()">+ 加卡</button>
+        <button class="btn-manage" onclick="openUserList()">👥</button>
+      </div>
+    </div>
+
+    <div class="view-toggle">
+      <button class="active" onclick="switchView('explore','member')" id="explore-member-btn">👤 按成员</button>
+      <button onclick="switchView('explore','series')" id="explore-series-btn">🃏 按系列</button>
+    </div>
+
+    <!-- ---------- 卡库 · 按成员 ---------- -->
+    <div id="explore-member">
+      <div class="jump-nav" id="explore-member-jump"></div>
+
+      <!-- 徐明浩 -->
+      <div class="group-header" onclick="toggleGroup(this)" data-section="minghao-explore">
+        <div class="member-info">
+          <div class="member-name">🐸 徐明浩 · SEVENTEEN</div>
+          <div class="member-meta">3张卡片</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="minghao-explore-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐸','徐明浩','Kitsch 特典卡')"><span class="placeholder">🐸</span></div><div class="card-info"><h4>Kitsch 特典卡</h4><div class="meta"><span class="tag tag-series">Kitsch</span><span class="tag tag-type">特典卡</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🍀','徐明浩','Lucky Draw')"><span class="placeholder">🍀</span></div><div class="card-info"><h4>Lucky Draw</h4><div class="meta"><span class="tag tag-type">Lucky Draw</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🏝️','徐明浩','2025克拉岛随机卡')"><span class="placeholder">🏝️</span></div><div class="card-info"><h4>2025克拉岛随机卡（明浩版）</h4><div class="meta"><span class="tag tag-series">2025克拉岛</span><span class="tag tag-type">随机卡</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+      </div>
+
+      <!-- 金珉奎 -->
+      <div class="group-header" onclick="toggleGroup(this)" data-section="mingyu-explore">
+        <div class="member-info">
+          <div class="member-name">🐶 金珉奎 · SEVENTEEN</div>
+          <div class="member-meta">2张卡片</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="mingyu-explore-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐶','金珉奎','MAESTRO 专辑卡')"><span class="placeholder">🐶</span></div><div class="card-info"><h4>MAESTRO 专辑卡</h4><div class="meta"><span class="tag tag-series">MAESTRO</span><span class="tag tag-type">专辑卡</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🏝️','金珉奎','2025克拉岛随机卡')"><span class="placeholder">🏝️</span></div><div class="card-info"><h4>2025克拉岛随机卡（珉奎版）</h4><div class="meta"><span class="tag tag-series">2025克拉岛</span><span class="tag tag-type">随机卡</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+      </div>
+
+      <!-- 金主训 -->
+      <div class="group-header" onclick="toggleGroup(this)" data-section="joohoon-explore">
+        <div class="member-info">
+          <div class="member-name">🦊 金主训 · CORTIS</div>
+          <div class="member-meta">1张卡片</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="joohoon-explore-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🦊','金主训','DEBUT 特典卡')"><span class="placeholder">🦊</span></div><div class="card-info"><h4>DEBUT 特典卡</h4><div class="meta"><span class="tag tag-series">DEBUT</span><span class="tag tag-type">特典卡</span><span class="tag tag-group">CORTIS</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+      </div>
+    </div>
+
+    <!-- ---------- 卡库 · 按系列 ---------- -->
+    <div id="explore-series" class="hidden">
+      <div class="jump-nav" id="explore-series-jump"></div>
+
+      <!-- 2025克拉岛 -->
+      <div class="series-card" id="series-kladao">
+        <div class="series-header"><h4>🏝️ 2025克拉岛</h4><span class="series-count">6张 · SEVENTEEN</span></div>
+        <div class="series-thumbs">
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐸','徐明浩','2025克拉岛随机卡')"><span>🐸</span></div><div class="series-thumb-name">徐明浩</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐶','金珉奎','2025克拉岛随机卡')"><span>🐶</span></div><div class="series-thumb-name">金珉奎</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🎸','李知勋','2025克拉岛随机卡')"><span>🎸</span></div><div class="series-thumb-name">李知勋</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('😇','尹净汉','2025克拉岛随机卡')"><span>😇</span></div><div class="series-thumb-name">尹净汉</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐶','金珉奎','2025克拉岛随机卡2')"><span>🐶</span></div><div class="series-thumb-name">金珉奎</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🍊','夫胜宽','2025克拉岛随机卡')"><span>🍊</span></div><div class="series-thumb-name">夫胜宽</div></div>
+        </div>
+      </div>
+
+      <!-- Kitsch -->
+      <div class="series-card" id="series-kitsch">
+        <div class="series-header"><h4>📸 Kitsch</h4><span class="series-count">2张 · SEVENTEEN</span></div>
+        <div class="series-thumbs">
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐸','徐明浩','Kitsch 特典卡')"><span>🐸</span></div><div class="series-thumb-name">徐明浩</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐶','金珉奎','Kitsch 特典卡')"><span>🐶</span></div><div class="series-thumb-name">金珉奎</div></div>
+        </div>
+      </div>
+
+      <!-- MAESTRO -->
+      <div class="series-card" id="series-maestro">
+        <div class="series-header"><h4>🎵 MAESTRO</h4><span class="series-count">13张 · SEVENTEEN</span></div>
+        <div class="series-thumbs">
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('👑','崔胜哲','MAESTRO 专辑卡')"><span>👑</span></div><div class="series-thumb-name">崔胜哲</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('😇','尹净汉','MAESTRO 专辑卡')"><span>😇</span></div><div class="series-thumb-name">尹净汉</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🦌','洪知秀','MAESTRO 专辑卡')"><span>🦌</span></div><div class="series-thumb-name">洪知秀</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐱','文俊辉','MAESTRO 专辑卡')"><span>🐱</span></div><div class="series-thumb-name">文俊辉</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐯','权顺荣','MAESTRO 专辑卡')"><span>🐯</span></div><div class="series-thumb-name">权顺荣</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐺','全圆佑','MAESTRO 专辑卡')"><span>🐺</span></div><div class="series-thumb-name">全圆佑</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🎸','李知勋','MAESTRO 专辑卡')"><span>🎸</span></div><div class="series-thumb-name">李知勋</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐸','徐明浩','MAESTRO 专辑卡')"><span>🐸</span></div><div class="series-thumb-name">徐明浩</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐶','金珉奎','MAESTRO 专辑卡')"><span>🐶</span></div><div class="series-thumb-name">金珉奎</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('⚔️','李硕珉','MAESTRO 专辑卡')"><span>⚔️</span></div><div class="series-thumb-name">李硕珉</div></div>
+        </div>
+      </div>
+
+      <!-- DEBUT -->
+      <div class="series-card" id="series-debut">
+        <div class="series-header"><h4>🎤 DEBUT</h4><span class="series-count">5张 · CORTIS</span></div>
+        <div class="series-thumbs">
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐣','赵雨凡','DEBUT 特典卡')"><span>🐣</span></div><div class="series-thumb-name">赵雨凡</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🦊','金主训','DEBUT 特典卡')"><span>🦊</span></div><div class="series-thumb-name">金主训</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐱','马丁','DEBUT 特典卡')"><span>🐱</span></div><div class="series-thumb-name">马丁</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐶','严成玹','DEBUT 特典卡')"><span>🐶</span></div><div class="series-thumb-name">严成玹</div></div>
+          <div class="series-thumb-item"><div class="series-thumb-img" onclick="event.stopPropagation();openImageViewer('🐰','安乾镐','DEBUT 特典卡')"><span>🐰</span></div><div class="series-thumb-name">安乾镐</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== 我的卡册 ======================== -->
+  <div id="tab-my" class="hidden">
+    <div class="stats-bar">
+      <div class="stat-item"><div class="stat-num">7</div><div class="stat-label">总共</div></div>
+      <div class="stat-divider"></div>
+      <div class="stat-item"><div class="stat-num">¥1,230</div><div class="stat-label">总花费</div></div>
+      <div class="stat-divider"></div>
+      <div class="stat-item"><div class="stat-num">3</div><div class="stat-label">在途</div></div>
+      <div class="stat-divider"></div>
+      <div class="stat-item"><div class="stat-num">4</div><div class="stat-label">已到手</div></div>
+    </div>
+
+    <div class="view-toggle">
+      <button class="active" onclick="switchView('my','member')" id="my-member-btn">👤 按成员</button>
+      <button onclick="switchView('my','series')" id="my-series-btn">🃏 按卡</button>
+    </div>
+
+    <!-- ---------- 我的卡册 · 按成员 ---------- -->
+    <div id="my-member">
+      <a class="toggle-all" onclick="toggleAll('my-member')">📂 全部展开/折叠</a>
+      <div class="jump-nav" id="my-member-jump"></div>
+
+      <div class="group-header" onclick="toggleGroup(this)" data-section="my-minghao">
+        <div class="member-info">
+          <div class="member-name">🐸 徐明浩 · SEVENTEEN</div>
+          <div class="member-meta">3张 · ¥530 · 1张在途</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="my-minghao-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐸','徐明浩','Kitsch 特典卡')"><span class="placeholder">🐸</span></div><div class="card-info"><h4>Kitsch 特典卡</h4><div class="meta"><span class="tag tag-type">特典卡</span></div><div class="price">¥200 <span class="tag tag-status status-shipping">在途</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🍀','徐明浩','Lucky Draw')"><span class="placeholder">🍀</span></div><div class="card-info"><h4>Lucky Draw</h4><div class="meta"><span class="tag tag-type">Lucky Draw</span></div><div class="price">¥150 <span class="tag tag-status status-arrived">已到手</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🏝️','徐明浩','2025克拉岛随机卡')"><span class="placeholder">🏝️</span></div><div class="card-info"><h4>2025克拉岛随机卡（明浩版）</h4><div class="meta"><span class="tag tag-series">2025克拉岛</span><span class="tag tag-type">随机卡</span></div><div class="price">¥180 <span class="tag tag-status status-arrived">已到手</span></div></div></div>
+      </div>
+
+      <div class="group-header" onclick="toggleGroup(this)" data-section="my-mingyu">
+        <div class="member-info">
+          <div class="member-name">🐶 金珉奎 · SEVENTEEN</div>
+          <div class="member-meta">2张 · ¥300 · 1张未发货</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="my-mingyu-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐶','金珉奎','MAESTRO 专辑卡')"><span class="placeholder">🐶</span></div><div class="card-info"><h4>MAESTRO 专辑卡</h4><div class="meta"><span class="tag tag-series">MAESTRO</span><span class="tag tag-type">专辑卡</span></div><div class="price">¥80 <span class="tag tag-status status-arrived">已到手</span></div></div><button class="card-delete" onclick="confirmDeleteCard(event)">×</button></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🏝️','金珉奎','2025克拉岛随机卡')"><span class="placeholder">🏝️</span></div><div class="card-info"><h4>2025克拉岛随机卡（珉奎版）</h4><div class="meta"><span class="tag tag-series">2025克拉岛</span><span class="tag tag-type">随机卡</span></div><div class="price">¥220 <span class="tag tag-status status-waiting">未发货</span></div></div></div>
+      </div>
+
+      <div class="group-header" onclick="toggleGroup(this)" data-section="my-joohoon">
+        <div class="member-info">
+          <div class="member-name">🦊 金主训 · CORTIS</div>
+          <div class="member-meta">2张 · ¥400 · 1张在途</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="my-joohoon-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🦊','金主训','DEBUT 特典卡')"><span class="placeholder">🦊</span></div><div class="card-info"><h4>DEBUT 特典卡</h4><div class="meta"><span class="tag tag-type">特典卡</span></div><div class="price">¥220 <span class="tag tag-status status-shipping">在途</span></div></div></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🦊','金主训','迷你一辑特典卡')"><span class="placeholder">🎀</span></div><div class="card-info"><h4>迷你一辑特典卡</h4><div class="meta"><span class="tag tag-type">特典卡</span></div><div class="price">¥180 <span class="tag tag-status status-arrived">已到手</span></div></div></div>
+      </div>
+    </div>
+
+    <!-- ---------- 我的卡册 · 按卡 ---------- -->
+    <div id="my-series" class="hidden">
+      <a class="toggle-all" onclick="toggleAll('my-series')">📂 全部展开/折叠</a>
+      <div class="jump-nav" id="my-series-jump"></div>
+
+      <div class="group-header" onclick="toggleGroup(this)" data-section="mycard-kladao">
+        <div class="member-info">
+          <div class="member-name">🏝️ 2025克拉岛随机卡</div>
+          <div class="member-meta">2张 · ¥400 · SEVENTEEN</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="mycard-kladao-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐸','徐明浩','2025克拉岛随机卡')"><span class="placeholder">🐸</span></div><div class="card-info"><h4>徐明浩</h4><div class="meta"><span class="tag tag-member">徐明浩</span><span class="tag tag-group">SEVENTEEN</span></div><div class="price">¥180 <span class="tag tag-status status-arrived">已到手</span></div></div></div>
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐶','金珉奎','2025克拉岛随机卡')"><span class="placeholder">🐶</span></div><div class="card-info"><h4>金珉奎</h4><div class="meta"><span class="tag tag-member">金珉奎</span><span class="tag tag-group">SEVENTEEN</span></div><div class="price">¥220 <span class="tag tag-status status-waiting">未发货</span></div></div></div>
+      </div>
+
+      <div class="group-header" onclick="toggleGroup(this)" data-section="mycard-kitsch">
+        <div class="member-info">
+          <div class="member-name">📸 Kitsch 特典卡</div>
+          <div class="member-meta">1张 · ¥200 · 在途</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="mycard-kitsch-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🐸','徐明浩','Kitsch 特典卡')"><span class="placeholder">🐸</span></div><div class="card-info"><h4>徐明浩</h4><div class="meta"><span class="tag tag-member">徐明浩</span><span class="tag tag-group">SEVENTEEN</span></div><div class="price">¥200 <span class="tag tag-status status-shipping">在途</span></div></div></div>
+      </div>
+
+      <div class="group-header" onclick="toggleGroup(this)" data-section="mycard-debut">
+        <div class="member-info">
+          <div class="member-name">🎤 DEBUT 特典卡</div>
+          <div class="member-meta">1张 · ¥220 · CORTIS</div>
+        </div>
+        <div class="expand-icon">▼</div>
+      </div>
+      <div class="group-cards" id="mycard-debut-cards">
+        <div class="card"><div class="card-img" onclick="openImageViewer('🦊','金主训','DEBUT 特典卡')"><span class="placeholder">🦊</span></div><div class="card-info"><h4>金主训</h4><div class="meta"><span class="tag tag-member">金主训</span><span class="tag tag-group">CORTIS</span></div><div class="price">¥220 <span class="tag tag-status status-shipping">在途</span></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 底部导航 -->
+<div class="bottom-nav">
+  <button class="active" id="bottom-explore" onclick="showTab('explore')"><span class="icon">🔍</span>浏览卡库</button>
+  <button id="bottom-my" onclick="showTab('my')"><span class="icon">💝</span>我的卡册</button>
+</div>
+
+<!-- 大图弹窗 -->
+<div class="img-modal hidden" id="imgModal" onclick="closeImageViewer()">
+  <button class="img-close">✕</button>
+  <img id="modalImg" src="" alt="大图" onerror="this.style.display='none'">
+  <div class="img-caption" id="modalCaption"></div>
+</div>
+
+<!-- 添加卡片弹窗 -->
+<div class="overlay hidden" id="addCardPanel">
+  <div class="panel">
+    <div class="panel-header"><h3>➕ 添加卡片到卡库</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
+    <div class="panel-body">
+      <div class="form-group">
+        <label>📸 卡面图片 <span style="font-size:11px;color:#999;">(点击拍照或选图)</span></label>
+        <div class="img-upload-area" onclick="document.getElementById('imgFileInput').click()">
+          <div class="img-upload-placeholder" id="imgUploadPlaceholder"><span style="font-size:36px;">📷</span><span style="font-size:13px;color:#888;">点击拍照 或 从相册选择</span></div>
+          <img id="imgUploadPreview" class="img-upload-preview hidden">
+        </div>
+        <input type="file" id="imgFileInput" accept="image/*" capture="environment" onchange="previewImage(event)" class="hidden">
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button type="button" onclick="takePhoto()" class="mini-photo-btn">📸 拍照</button>
+          <button type="button" onclick="pickFromGallery()" class="mini-photo-btn">🖼️ 相册</button>
+          <button type="button" onclick="clearImagePreview()" class="mini-photo-btn" style="color:#dc2626;">✕ 清除</button>
+        </div>
+      </div>
+      <div class="form-group"><label>卡名</label><input type="text" placeholder="如：2025克拉岛随机卡"></div>
+      <div class="form-row">
+        <div class="form-group"><label>团体</label><select id="addCardGroup" onchange="updateMemberSelect()"><option value="">请选择团体</option><option value="seventeen">SEVENTEEN（13人）</option><option value="cortis">CORTIS（5人）</option></select></div>
+        <div class="form-group"><label>成员</label><select id="addCardMember"><option value="">请先选择团体</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>系列</label><select><option>2025克拉岛</option><option>Kitsch</option><option>MAESTRO</option><option>DEBUT</option><option>新系列…</option></select></div>
+        <div class="form-group"><label>品类</label><select><option>专辑卡</option><option>特典卡</option><option>随机卡</option><option>Lucky Draw</option><option>签售卡</option><option>打歌卡</option><option>快闪卡</option><option>其他</option></select></div>
+      </div>
+      <div style="font-size:11px;color:#999;margin-bottom:10px;">🔒 选团后成员自动锁定，不可跨团选择</div>
+      <button class="btn-primary">✅ 确认添加（仅创始人可操作）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 人员管理弹窗 -->
+<div class="overlay hidden" id="userListPanel">
+  <div class="panel">
+    <div class="panel-header"><h3>👥 人员管理</h3><button class="panel-close" onclick="closePanel()">✕</button></div>
+    <div class="panel-body">
+      <div class="invite-box">
+        <div style="font-size:13px; color:#666; margin-bottom:4px;">📨 分享邀请码给朋友</div>
+        <div class="invite-code">KARD-7X9M</div>
+        <div class="invite-hint">朋友在页面输入此邀请码即可加入</div>
+        <button class="btn-primary" style="margin-top:10px; padding:10px;" onclick="alert('📋 已复制邀请码到剪贴板！')">📋 复制邀请码</button>
+      </div>
+      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">当前成员（3人）</div>
+      <div class="user-card"><div class="user-avatar">😎</div><div class="user-info"><div class="user-name">bobo</div><div class="user-id">#001</div></div><span class="user-role role-creator">创始人</span></div>
+      <div class="user-card"><div class="user-avatar">🐱</div><div class="user-info"><div class="user-name">朋友A</div><div class="user-id">#002 · 卡册3张</div></div><span class="user-role role-member">使用人</span><div class="role-actions"><button class="role-btn btn-promote" onclick="alert('⬆️ 升级为创始人')">升创始人</button><button class="role-btn btn-remove" onclick="alert('🗑️ 移除')">移除</button></div></div>
+      <div class="user-card"><div class="user-avatar">🐰</div><div class="user-info"><div class="user-name">朋友B</div><div class="user-id">#003 · 卡册1张</div></div><span class="user-role role-member">使用人</span><div class="role-actions"><button class="role-btn btn-promote" onclick="alert('⬆️ 升级')">升创始人</button><button class="role-btn btn-remove" onclick="alert('🗑️ 移除')">移除</button></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 团体-成员绑定 =====
+const GROUP_MEMBERS = {
+  seventeen: ['崔胜哲(S.COUPS)','尹净汉','洪知秀(Joshua)','文俊辉(Jun)','权顺荣(Hoshi)','全圆佑','李知勋(Woozi)','徐明浩(The8)','金珉奎','李硕珉(DK)','夫胜宽','崔韩率(Vernon)','李灿(Dino)'],
+  cortis: ['赵雨凡','金主训','马丁','严成玹','安乾镐']
+};
+
+// ===== Tab切换 =====
+function showTab(t) {
+  document.querySelectorAll('[id^="tab-"]').forEach(function(e){e.classList.add('hidden')});
+  document.getElementById('tab-'+t).classList.remove('hidden');
+  document.querySelectorAll('.nav-btn').forEach(function(e){e.classList.remove('active')});
+  document.getElementById('nav-'+t).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(function(e){e.classList.remove('active')});
+  document.getElementById('bottom-'+t).classList.add('active');
+  buildJumpNavs();
+}
+
+// ===== 视图切换 =====
+function switchView(ctx, view) {
+  document.getElementById(ctx+'-member').classList.toggle('hidden', view!=='member');
+  document.getElementById(ctx+'-series').classList.toggle('hidden', view!=='series');
+  var bm=document.getElementById(ctx+'-member-btn'), bs=document.getElementById(ctx+'-series-btn');
+  if(bm)bm.classList.toggle('active', view==='member');
+  if(bs)bs.classList.toggle('active', view==='series');
+  buildJumpNavs();
+}
+
+// ===== 折叠/展开分组 =====
+function toggleGroup(header) {
+  var section = header.getAttribute('data-section');
+  var cards = document.getElementById(section+'-cards');
+  if(!cards) return;
+  var isCollapsed = cards.classList.contains('collapsed');
+  if(isCollapsed){
+    cards.classList.remove('collapsed');
+    header.classList.remove('collapsed');
+    header.querySelector('.expand-icon').textContent = '▼';
+  } else {
+    cards.classList.add('collapsed');
+    header.classList.add('collapsed');
+    header.querySelector('.expand-icon').textContent = '▶';
+  }
+}
+
+function toggleAll(viewId) {
+  var view = document.getElementById(viewId);
+  if(!view) return;
+  var headers = view.querySelectorAll('.group-header');
+  var anyOpen = false;
+  headers.forEach(function(h){
+    var section = h.getAttribute('data-section');
+    var cards = document.getElementById(section+'-cards');
+    if(cards && !cards.classList.contains('collapsed')) anyOpen = true;
+  });
+  headers.forEach(function(h){
+    var section = h.getAttribute('data-section');
+    var cards = document.getElementById(section+'-cards');
+    if(!cards) return;
+    if(anyOpen){
+      cards.classList.add('collapsed');
+      h.classList.add('collapsed');
+      h.querySelector('.expand-icon').textContent = '▶';
+    } else {
+      cards.classList.remove('collapsed');
+      h.classList.remove('collapsed');
+      h.querySelector('.expand-icon').textContent = '▼';
+    }
+  });
+}
+
+// ===== 快速跳转导航 =====
+function buildJumpNavs() {
+  // 卡库按成员
+  buildJump('explore-member-jump', document.querySelectorAll('#explore-member .group-header'));
+  // 卡库按系列
+  buildJump('explore-series-jump', document.querySelectorAll('#explore-series .series-card'));
+  // 我的卡册按成员
+  buildJump('my-member-jump', document.querySelectorAll('#my-member .group-header'));
+  // 我的卡册按卡
+  buildJump('my-series-jump', document.querySelectorAll('#my-series .group-header'));
+}
+function buildJump(navId, items) {
+  var nav = document.getElementById(navId);
+  if(!nav) return;
+  nav.innerHTML = '';
+  items.forEach(function(item, i){
+    var name = '';
+    var count = '';
+    var titleEl = item.querySelector('.member-name, h4');
+    if(titleEl) {
+      name = titleEl.textContent.split('·')[0].trim();
+      // 只取名字部分，去掉emoji
+      name = name.replace(/[🐸🐶🦊🐣🐱🐰🦌🐯🐺🐈🎸⚔️🍊🦅🦦🐕👑😇🏝️📸🎤🎵]/g,'').trim();
+      if(!name) name = titleEl.textContent.trim().substring(0,6);
+    }
+    var countEl = item.querySelector('.member-meta, .series-count');
+    if(countEl) count = countEl.textContent.split('·')[0].trim();
+    var chip = document.createElement('button');
+    chip.className = 'jump-chip';
+    chip.textContent = name;
+    if(count) chip.innerHTML += '<span class="badge">'+count+'</span>';
+    chip.onclick = (function(el){return function(){el.scrollIntoView({behavior:'smooth',block:'start'});}})(item);
+    nav.appendChild(chip);
+  });
+}
+
+// ===== 图片上传 =====
+function takePhoto(){var i=document.getElementById('imgFileInput');i.setAttribute('capture','environment');i.click();}
+function pickFromGallery(){var i=document.getElementById('imgFileInput');i.removeAttribute('capture');i.click();}
+function previewImage(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(ev){document.getElementById('imgUploadPlaceholder').classList.add('hidden');var p=document.getElementById('imgUploadPreview');p.src=ev.target.result;p.classList.remove('hidden')};r.readAsDataURL(f)}
+function clearImagePreview(){document.getElementById('imgFileInput').value='';document.getElementById('imgUploadPlaceholder').classList.remove('hidden');document.getElementById('imgUploadPreview').classList.add('hidden');document.getElementById('imgUploadPreview').src=''}
+
+// ===== 图片查看器 =====
+function openImageViewer(emoji, member, cardName){
+  document.getElementById('modalCaption').textContent=member+' · '+cardName;
+  document.getElementById('imgModal').classList.remove('hidden');
+}
+function closeImageViewer(){document.getElementById('imgModal').classList.add('hidden')}
+
+// ===== 弹窗 =====
+function closePanel(){document.querySelectorAll('.overlay').forEach(function(o){o.classList.add('hidden')})}
+function openAddCard(){document.getElementById('addCardPanel').classList.remove('hidden')}
+function openUserList(){document.getElementById('userListPanel').classList.remove('hidden')}
+
+// ===== 成员选择联动 =====
+function updateMemberSelect(){var s=document.getElementById('addCardMember'),g=document.getElementById('addCardGroup').value;s.innerHTML='<option value="">请选择成员</option>';if(g&&GROUP_MEMBERS[g]){GROUP_MEMBERS[g].forEach(function(m){s.innerHTML+='<option value="'+m+'">'+m+'</option>'})}}
+
+// ===== 删除确认 =====
+function confirmDeleteCard(event){event.stopPropagation();var b=event.target;if(b.classList.contains('confirming')){b.closest('.card').remove()}else{b.classList.add('confirming');b.textContent='确认?';setTimeout(function(){b.classList.remove('confirming');b.textContent='×'},3000)}}
+
+// ===== 初始化 =====
+document.addEventListener('DOMContentLoaded', function(){buildJumpNavs()});
+document.addEventListener('click', function(e){if(e.target.classList.contains('overlay')){e.target.classList.add('hidden')}});
+</script>
+
+</body>
+</html>

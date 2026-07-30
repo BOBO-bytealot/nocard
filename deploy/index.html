@@ -11,11 +11,8 @@
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);max-width:480px;margin:0 auto;min-height:100vh}
 .nav{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .nav h1{font-size:16px;font-weight:600;white-space:nowrap;flex-shrink:0}
-.nav-actions{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:center;max-width:calc(100% - 60px);padding-right:4px}
+.nav-actions{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:center}
 .nav-actions::-webkit-scrollbar{display:none}
-#navUsers{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;max-width:120px}
-#navUsers::-webkit-scrollbar{display:none}
-#navUsers .nav-btn{max-width:70px;overflow:hidden;text-overflow:ellipsis;padding:5px 8px}
 .nav-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 10px;border-radius:14px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .nav-btn.active{background:rgba(255,255,255,.35);font-weight:600}
 .nav-sep{width:1px;height:16px;background:rgba(255,255,255,.25);flex-shrink:0;margin:0 2px}
@@ -32,7 +29,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-body h4{font-size:15px;font-weight:600;margin-bottom:2px}
 .card-body .meta{font-size:12px;color:var(--muted);line-height:1.5}
 .card-body .price-line{font-size:13px;font-weight:600;color:#e74c3c;margin-top:2px}
-.card-delete{position:absolute;top:8px;right:8px;min-width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#999;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;padding:0 6px;white-space:nowrap}
+.card-delete{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#999;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .card-delete.confirming{background:#fee2e2;color:var(--danger)}
 .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px;margin-bottom:2px}
 .tag-member{background:var(--tint2,#ede9fe);color:var(--purple)}
@@ -143,7 +140,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <button class="nav-btn active" id="nav-my" onclick="switchTab('my')">卡册</button>
     <span class="nav-sep"></span>
     <span id="navUsers"></span>
-    <button class="nav-btn" onclick="forceRefresh()" style="background:rgba(255,255,255,.15);padding:5px 8px" title="刷新">🔄</button>
     <button class="nav-btn" onclick="openProfilePanel()" style="background:rgba(255,255,255,.15);padding:5px 8px">⚙️</button>
   </div>
 </nav>
@@ -168,31 +164,8 @@ var SUPABASE_URL='https://neolxiocucigqrrgueim.supabase.co';
 var SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 绕过 Supabase JS 客户端 Bug，直接调 REST API
-function supaGet(table,opts){
-  var u=SUPABASE_URL+'/rest/v1/'+table+'?select=*';
-  if(opts&&opts.order) u+='&order='+opts.order.replace(/\.desc$/,'')+(opts.asc===false||/\.desc$/.test(opts.order)?'.desc':'');
-  if(opts&&opts.limit) u+='&limit='+opts.limit;
-  if(opts&&opts.eq) for(var k in opts.eq) u+='&'+k+'=eq.'+encodeURIComponent(opts.eq[k]);
-  if(opts&&opts['in']) for(var k in opts['in']) u+='&'+k+'=in.('+opts['in'][k].map(encodeURIComponent).join(',')+')';
-  return fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(!r.ok) return {data:null,error:{message:'HTTP '+r.status}}; return r.json().then(function(d){ return {data:d instanceof Array?d:null,error:null} }) }).catch(function(e){ return {data:null,error:e} });
-}
-function supaInsert(table,data){
-  return fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null,data:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
-}
-function supaUpdate(table,filter,data){
-  var u=SUPABASE_URL+'/rest/v1/'+table;
-  for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
-  return fetch(u,{method:'PATCH',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
-}
-function supaDelete(table,filter){
-  var u=SUPABASE_URL+'/rest/v1/'+table;
-  for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
-  return fetch(u,{method:'DELETE',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
-}
-
 // ═══════════════════ 数据常量 ═══════════════════
-var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
+var MEMBER_EMOJIS = {'崔胜哲':'👑','尹净汉':'😇','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🐺','李知勋':'🎸','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔韩率':'🦅','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
 var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
 var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
@@ -202,48 +175,28 @@ var currentTab='my', currentView='member';
 var groups=[], members=[], users=[], cards=[], records=[];
 var currentUser=null;
 var _formImgData='';
-var CACHE_TTL=24*60*60*1000; // 缓存24小时
-var CARD_PAGE_SIZE=100, _cardsHasMore=true, _cardsLoadingMore=false;
-
-function _cacheGet(key){ try{ var raw=localStorage.getItem('kcard_cache_'+key); if(!raw) return null; var obj=JSON.parse(raw); if(Date.now()-obj.ts>CACHE_TTL) return null; return obj.data }catch(e){ return null } }
-function _cacheSet(key,data){ try{ localStorage.setItem('kcard_cache_'+key,JSON.stringify({ts:Date.now(),data:data})) }catch(e){} }
-function _cacheClear(){ for(var i=localStorage.length-1;i>=0;i--){ var k=localStorage.key(i); if(k&&k.indexOf('kcard_cache_')===0) localStorage.removeItem(k) } }
 
 function getEmoji(name){ if(!name) return '👥'; var n=name.split('(')[0]; return MEMBER_EMOJIS[n]||name[0] }
 
 // ═══════════════════ 数据加载 ═══════════════════
 async function loadData(){
-  // 静态数据优先读缓存
-  groups=_cacheGet('groups');
-  members=_cacheGet('members');
-  users=_cacheGet('users');
-
-  var needGroups=!groups, needMembers=!members, needUsers=!users;
-  var staticPromises=[];
-  if(needGroups) staticPromises.push(supaGet('groups',{order:'sort_order'}));
-  if(needMembers) staticPromises.push(supaGet('members',{order:'sort_order'}));
-  if(needUsers) staticPromises.push(supaGet('users'));
-
-  // cards/records 全部交给 refreshCurrentData 处理
-  var uid=localStorage.getItem('kcard_user_id');
-  var dynamicPromises=[
-    supaGet('invite_codes',{limit:1}).then(function(r){ return {data:(r.data&&r.data[0])||null} })
-  ];
-  if(uid) dynamicPromises.push(supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}));
-  else dynamicPromises.push(Promise.resolve({data:[]}));
-
-  var staticResults=await Promise.all(staticPromises);
-  var dynamicResults=await Promise.all(dynamicPromises);
-  var si=0;
-  if(needGroups){ groups=staticResults[si].data||[]; _cacheSet('groups',groups); si++ }
-  if(needMembers){ members=staticResults[si].data||[]; _cacheSet('members',members); si++ }
-  if(needUsers){ users=staticResults[si].data||[]; _cacheSet('users',users); si++ }
-  // cards 留空，refreshCurrentData 会填充
-  var inviteData=dynamicResults[0].data;
-  records=dynamicResults[1].data||[];
+  var results=await Promise.all([
+    sb.from('groups').select('*').order('sort_order'),
+    sb.from('members').select('*').order('sort_order'),
+    sb.from('users').select('*'),
+    sb.from('cards').select('*').order('created_at',{ascending:false}),
+    sb.from('records').select('*').order('created_at',{ascending:false}),
+    sb.from('invite_codes').select('*').limit(1).maybeSingle()
+  ]);
+  groups=results[0].data||[];
+  members=results[1].data||[];
+  users=results[2].data||[];
+  cards=results[3].data||[];
+  records=results[4].data||[];
+  var inviteData=results[5].data;
   if(!inviteData){
     var code='KARD-'+Math.random().toString(36).substring(2,6).toUpperCase();
-    await supaInsert('invite_codes',{code:code,used:false});
+    await sb.from('invite_codes').insert({code:code,used:false});
     window._inviteCode=code;
   } else { window._inviteCode=inviteData.code }
 
@@ -251,46 +204,14 @@ async function loadData(){
   var uid=localStorage.getItem('kcard_user_id');
   if(uid) currentUser=users.find(u=>u.id===uid)||null;
   if(!currentUser&&users.length>0&&users[0].role==='founder'){ currentUser=users[0]; localStorage.setItem('kcard_user_id',currentUser.id) }
-  // 实时订阅关闭，改手动刷新，避免后台频繁全量刷新
-  // if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
+  if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
 }
 
 async function refreshCurrentData(){
-  var uid=localStorage.getItem('kcard_user_id');
-  var r1=await supaGet('users'); users=r1.data||[]; _cacheSet('users',users);
-  var myGid=getUserGroupId();
-  var cUrl=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+myGid:'');
-  var cResp=await fetch(cUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-  var cData=await cResp.json();
-  cards=Array.isArray(cData)?cData:[]; _cardsHasMore=cards.length>=CARD_PAGE_SIZE;
-  var r3=uid?await supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}):{data:[]}; records=r3.data||[];
-  // 确保卡册关联的 cards 也在 cards 数组里
-  if(records.length){
-    var existingIds={}; cards.forEach(function(c){ existingIds[c.id]=true });
-    var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
-    if(missingIds.length){
-      var xUrl=SUPABASE_URL+'/rest/v1/cards?select=*&id=in.('+missingIds.join(',')+')';
-      var xResp=await fetch(xUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      var xData=await xResp.json();
-      if(Array.isArray(xData)&&xData.length) cards=cards.concat(xData);
-    }
-  }
+  var r1=await sb.from('users').select('*'); users=r1.data||[];
+  var r2=await sb.from('cards').select('*').order('created_at',{ascending:false}); cards=r2.data||[];
+  var r3=await sb.from('records').select('*').order('created_at',{ascending:false}); records=r3.data||[];
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
-  render();
-}
-
-async function loadMoreCards(){
-  if(_cardsLoadingMore || !_cardsHasMore) return;
-  _cardsLoadingMore=true;
-  var last=cards[cards.length-1];
-  var myGid=getUserGroupId();
-  var u=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+last.created_at+(myGid?'&group_id=eq.'+myGid:'');
-  var r=await fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-  var moreData=await r.json();
-  var more=Array.isArray(moreData)?moreData:[];
-  cards=cards.concat(more);
-  _cardsHasMore=more.length>=CARD_PAGE_SIZE;
-  _cardsLoadingMore=false;
   render();
 }
 
@@ -333,7 +254,7 @@ function render(){
 function renderExplore(){
   var founder=isFounder(currentUser);
   var gid=getUserGroupId();
-  var filteredCards=cards.filter(function(c){ return !gid || c.group_id===gid });
+  var filteredCards=gid?cards.filter(c=>c.group_id===gid):cards;
   var filteredGroups=gid?groups.filter(g=>g.id===gid):groups;
   var allSeries=[...new Set(filteredCards.map(c=>c.series).filter(Boolean))];
   var html=`<div class="manage-bar"><span class="count">📚 ${filteredGroups.length}个团体 · ${filteredCards.length}张卡</span><div class="manage-actions">${founder?`<button class="btn-add" onclick="openAddCard()">+ 加卡</button>`:''}<button class="btn-sm" style="background:#dbeafe;color:#2563eb" onclick="openProfilePanel()">👥 人员</button></div></div>`;
@@ -341,16 +262,12 @@ function renderExplore(){
   if(!filteredCards.length){ html+=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p style="margin-top:8px">卡库还是空的</p></div>`; return html }
   if(currentView==='member') html+=renderByMember(filteredCards,founder);
   else html+=renderBySeries(filteredCards);
-  if(_cardsHasMore && currentTab==='explore'){
-    html+=`<div style="text-align:center;padding:16px"><button class="btn-add" onclick="loadMoreCards()">${ _cardsLoadingMore?'加载中...':'加载更多卡片'}</button></div>`;
-  }
   return html;
 }
 
 function renderByMember(cardList,founder){
-  var myGid=getUserGroupId();
   var byMember={};
-  cardList.forEach(c=>{ if(myGid && c.group_id!==myGid) return; var k=c.group_id+'|'+c.member_id; if(!byMember[k]) byMember[k]={gid:c.group_id,mid:c.member_id,list:[]}; byMember[k].list.push(c) });
+  cardList.forEach(c=>{ var k=c.group_id+'|'+c.member_id; if(!byMember[k]) byMember[k]={gid:c.group_id,mid:c.member_id,list:[]}; byMember[k].list.push(c) });
   var sorted=Object.values(byMember).sort((a,b)=>{
     var ga=groups.findIndex(g=>g.id===a.gid), gb=groups.findIndex(g=>g.id===b.gid);
     if(ga!==gb) return ga-gb;
@@ -398,14 +315,13 @@ function renderBySeries(cardList){
   return html;
 }
 
-function buildCardItem(c, founder, isRecord, recordObj){
+function buildCardItem(c, founder, isRecord){
   var m=members.find(x=>x.id===c.member_id); var mn=m?m.name:''; var en=getEmoji(mn);
   var cidForEdit=c.cardId||c.id||c.recordId||'';
-  var ridAttr=recordObj?' data-record-id="'+recordObj.id+'"':'';
-  var html=`<div class="card-item" data-card-id="${cidForEdit}"${ridAttr}><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span class="emoji">${en}</span>`}</div><div class="card-body"><h4>${c.name}</h4><div class="meta">${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span>${isRecord?`<span class="tag tag-member">${mn}</span>`:''}</div>`;
+  var html=`<div class="card-item" data-card-id="${cidForEdit}"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span class="emoji">${en}</span>`}</div><div class="card-body"><h4>${c.name}</h4><div class="meta">${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span>${isRecord?`<span class="tag tag-member">${mn}</span>`:''}</div>`;
   if(isRecord) html+=`<div class="price-line">¥${c.price} <span class="tag tag-status ${STATUS_CLASS[c.status]}">${c.status}</span></div>`;
   html+=`</div>`;
-  if(founder||isRecord) html+=`<button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'${isRecord?'record':'card'}','${isRecord&&recordObj?recordObj.id:c.id}')">×</button>`;
+  if(founder||isRecord) html+=`<button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'${isRecord?'record':'card'}','${c.id}')">×</button>`;
   html+=`</div>`;
   return html;
 }
@@ -422,7 +338,7 @@ function renderMyCards(){
   var out=myRecs.filter(r=>r.status==='可出'||r.status==='待售').length;
   var filterActive=statusFilter?' active':'';
   var filterHtml=STATUSES.map(s=>`<button class="nav-btn${statusFilter===s?filterActive:''}" onclick="statusFilter=statusFilter==='${s}'?'':'${s}';render();" style="color:var(--text);background:${statusFilter===s?'var(--purple)':'#f3f4f6'};opacity:${statusFilter&&statusFilter!==s?'0.4':'1'}">${s}</button>`).join('');
-  var html=`<div class="manage-bar"><span class="count">💝 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openAiImport()">🤖 AI 录入</button><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button><button class="btn-add" onclick="openMyCardPicker()" style="background:#dbeafe;color:#2563eb">📚 从卡库选</button></div></div><div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
+  var html=`<div class="manage-bar"><span class="count">💝 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button></div></div><div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
   if(!myRecs.length) return html+'<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">💝</div><p>卡册还是空的</p><p>点上面的按钮录入第一张卡吧</p></div>';
 
   if(isCortisUser()){
@@ -461,8 +377,8 @@ function renderMyByMember(myRecs){
     var itr=g.list.filter(r=>r.status==='在途'||r.status==='未发货').length;
     html+=`<div class="group-hd" onclick="toggleGroup(this,'mycards_${g.gid}_${g.mid}')" id="mym_${g.gid}_${g.mid}"><div class="gi"><div class="gn">${getEmoji(mn)} ${mn} · ${gn}</div><div class="gm">${g.list.length}张 · ¥${tp} · ${itr}张在途</div></div><div class="arrow">▼</div></div><div class="group-cards" id="mycards_${g.gid}_${g.mid}">`;
     g.list.forEach(r=>{
-      var c=r._card; c.price=r.price; c.status=r.status; c.cardId=r.card_id;
-      html+=buildCardItem(c,true,true,r);
+      var c=r._card; c.price=r.price; c.status=r.status; c.id=r.id; c.recordId=r.id; c.cardId=r.card_id;
+      html+=buildCardItem(c,true,true);
     });
     html+=`</div>`;
   });
@@ -482,14 +398,37 @@ function renderMyByCard(myRecs){
     var tp=data.list.reduce((s,r)=>s+(r.price||0),0);
     html+=`<div class="group-hd" onclick="toggleGroup(this,'myscards_${name}')" id="mys_${name}"><div class="gi"><div class="gn">${name}</div><div class="gm">${data.list.length}张 · ¥${tp}</div></div><div class="arrow">▼</div></div><div class="group-cards" id="myscards_${name}">`;
     data.list.forEach(r=>{
-      var c=r._card; c.price=r.price; c.status=r.status; c.cardId=r.card_id;
-      html+=buildCardItem(c,true,true,r);
+      var c=r._card; c.price=r.price; c.status=r.status; c.id=r.id; c.cardId=r.card_id;
+      html+=buildCardItem(c,true,true);
     });
     html+=`</div>`;
   });
   html+='</div>'; return html;
 }
 
+function editCortisRecord(rid,price,status,cname){
+  event.stopPropagation();
+  var rec=records.find(r=>r.id===rid);
+  var cardId=rec?rec.card_id:null;
+  var card=cardId?cards.find(c=>c.id===cardId):null;
+  var imgPreview='';
+  if(card&&card.image_url){
+    imgPreview=`<div style="text-align:center;margin-bottom:8px"><img src="${card.image_url}" style="max-width:100%;max-height:180px;border-radius:8px"><div style="font-size:11px;color:var(--muted);margin-top:4px">当前卡面</div></div>`;
+  }
+  var editCardBtn='';
+  if(isFounder(currentUser)&&cardId){
+    editCardBtn=`<button class="btn-main" style="background:var(--pl);margin-top:4px" onclick="event.stopPropagation();closeModal();openEditCard(cards.find(c=>c.id==='${cardId}'))">📸 更换卡面 / 编辑卡片</button>`;
+  }
+  var html=imgPreview+`<div class="form-group"><label>💰 价格（元）</label><input type="number" id="editPrice" value="${price}" min="0"></div><div class="form-group"><label>是否在手</label><select id="editStatus"><option value="已到手"${status==='已到手'?' selected':''}>✅ 已到手</option><option value="未发货"${status==='未发货'?' selected':''}>📦 未在手</option></select></div><button class="btn-main" onclick="saveEditCortisRecord('${rid}')">💾 保存</button>${editCardBtn}`;
+  openModal('✏️ 编辑 | '+cname,html);
+}
+async function saveEditCortisRecord(rid){
+  var price=parseFloat(document.getElementById('editPrice').value)||0;
+  var status=document.getElementById('editStatus').value;
+  await sb.from('records').update({price:price,status:status}).eq('id',rid);
+  closeModal(); showToast('💾 已保存');
+  await refreshCurrentData();
+}
 function renderMyCortisCards(myRecs){
   myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
   var sorted=myRecs.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
@@ -498,7 +437,7 @@ function renderMyCortisCards(myRecs){
     var c=r._card; var isArrived=r.status==='已到手';
     var en=getEmoji(''); var img=c.image_url||'';
     var memberName=members.find(m=>m.id===c.member_id); var mn=memberName?memberName.name:'';
-    html+=`<div class="card-item" data-card-id="${c.id||''}" data-record-id="${r.id}"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${img}','${mn}','${c.name||''}','')">${img?`<img src="${img}" alt="">`:`<span class="emoji">${getEmoji(mn)}</span>`}</div><div class="card-body"><h4>${c.name||'未命名'}</h4><div class="meta"><span class="tag tag-member">${mn}</span></div><div class="price-line">¥${r.price} <span class="tag tag-status ${isArrived?'s-arrived':'s-waiting'}">${r.status}</span></div></div><button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'record','${r.id}')">×</button></div>`;
+    html+=`<div class="card-item" onclick="editCortisRecord('${r.id}','${r.price}','${r.status}','${(c.name||'').replace(/'/g,"\\'")}')"><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${img}','${mn}','${c.name||''}','')">${img?`<img src="${img}" alt="">`:`<span class="emoji">${getEmoji(mn)}</span>`}</div><div class="card-body"><h4>${c.name||'未命名'}</h4><div class="meta"><span class="tag tag-member">${mn}</span></div><div class="price-line">¥${r.price} <span class="tag tag-status ${isArrived?'s-arrived':'s-waiting'}">${r.status}</span></div></div><button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'record','${r.id}')">×</button></div>`;
   });
   return html;
 }
@@ -516,8 +455,8 @@ function closeModal(){ document.getElementById('modal').classList.add('hidden') 
 async function confirmDelete(event,type,id){
   event.stopPropagation(); var btn=event.target;
   if(btn.classList.contains('confirming')){
-    if(type==='card'){ await supaDelete('cards',{id:id}); await supaDelete('records',{card_id:id}); showToast('🗑️ 卡片已删除') }
-    else { await supaDelete('records',{id:id}); showToast('🗑️ 记录已删除') }
+    if(type==='card'){ await sb.from('cards').delete().eq('id',id); await sb.from('records').delete().eq('card_id',id); showToast('🗑️ 卡片已删除') }
+    else { await sb.from('records').delete().eq('id',id); showToast('🗑️ 记录已删除') }
     await refreshCurrentData();
   } else { btn.classList.add('confirming'); btn.textContent='确认?'; setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000) }
 }
@@ -534,7 +473,7 @@ async function doLogin(){
   if(code!==window._inviteCode){ showToast('❌ 邀请码不对'); return }
   if(users.find(u=>u.name===name)){ showToast('⚠️ 昵称已存在'); return }
   var id='u'+Date.now();
-  var r=await supaInsert('users',{id:id,name:name,role:'member'});
+  var r=await sb.from('users').insert({id:id,name:name,role:'member'});
   if(r.error){ showToast('注册失败: '+r.error.message); return }
   currentUser={id,name,role:'member'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('🎉 欢迎 '+name+'！');
@@ -545,15 +484,13 @@ async function doFirstLogin(){
   var name=document.getElementById('loginName').value.trim();
   if(!name){ showToast('请输入昵称'); return }
   var id='u'+Date.now();
-  await supaInsert('users',{id:id,name:name,role:'founder'});
+  await sb.from('users').insert({id:id,name:name,role:'founder'});
   currentUser={id,name,role:'founder'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('👑 '+name+' 成为创始人！');
   await refreshCurrentData();
 }
 
 // ═══════════════════ 人员管理 ═══════════════════
-function forceRefresh(){ showToast('🔄 刷新中...'); _cacheClear(); refreshCurrentData().then(function(){ showToast('✅ 已刷新') }) }
-
 function openProfilePanel(){
   if(!currentUser){ openLoginPanel(); return }
   var userList=users.map(u=>`<div class="user-card"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.id===currentUser.id?'(当前)':''} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div><div style="font-size:11px;color:var(--muted)">#${u.id} · ${records.filter(r=>r.user_id===u.id).length}张</div></div>${u.id===currentUser.id?'':u.role==='founder'&&isFounder(currentUser)?`<div class="role-actions"><button class="role-btn btn-remove" onclick="removeUser('${u.id}')">移除</button></div>`:u.role==='member'&&isFounder(currentUser)?`<div class="role-actions"><button class="role-btn btn-promote" onclick="promoteUser('${u.id}')">升创始人</button><button class="role-btn btn-remove" onclick="removeUser('${u.id}')">移除</button></div>`:''}</div>`).join('');
@@ -564,21 +501,21 @@ function openProfilePanel(){
 async function promoteUser(uid){
   var u=users.find(x=>x.id===uid);
   if(!u) return;
-  await supaUpdate('users',{id:uid},{role:'founder'});
+  await sb.from('users').update({role:'founder'}).eq('id',uid);
   showToast('⬆️ '+u.name+' 已升级'); closeModal(); await refreshCurrentData();
 }
 async function removeUser(uid){
   var u=users.find(x=>x.id===uid);
   if(!u||!confirm('确定移除 '+u.name+'？')) return;
-  await supaDelete('users',{id:uid});
-  await supaDelete('records',{user_id:uid});
+  await sb.from('users').delete().eq('id',uid);
+  await sb.from('records').delete().eq('user_id',uid);
   showToast('🗑️ 已移除'); closeModal(); await refreshCurrentData();
 }
 function switchUserMenu(){
   var opts=users.map(u=>`<div class="user-card" style="cursor:pointer" onclick="switchToUser('${u.id}')"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div></div></div>`).join('');
   document.getElementById('modalBody').innerHTML='<div style="font-weight:600;margin-bottom:8px">点击切换用户</div>'+opts;
 }
-function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; refreshCurrentData() }
+function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; render() }
 function getUserGroupId(){
   if(!currentUser) return null;
   if(currentUser.name==='二丁') return 'cortis';
@@ -586,186 +523,6 @@ function getUserGroupId(){
 }
 function isCortisUser(){
   return getUserGroupId()==='cortis';
-}
-
-// ═══════════════════ AI 自然语言录入 ═══════════════════
-function openAiImport(){
-  if(!currentUser){ showToast('请先登录'); return }
-  var example=isCortisUser()?'赵雨凡 stb专卡 30 未发货':'金珉奎 2026克拉岛zone卡 2026克拉岛 zone卡 28 已到手';
-  var fields=isCortisUser()?'成员、卡名、价格、状态':'成员、卡名、系列、品类、价格、状态';
-  var html=`<input type="file" id="aiImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewAiImg(event)"><div class="form-group"><label>📸 卡面图片（可选）</label><div class="upload-area" id="aiUploadArea" onclick="document.getElementById('aiImgInput').click()"><div class="upload-placeholder" id="aiUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="aiUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('aiImgInput').setAttribute('capture','environment');document.getElementById('aiImgInput').click()">📸 拍照</button><button onclick="document.getElementById('aiImgInput').removeAttribute('capture');document.getElementById('aiImgInput').click()">🖼️ 相册</button><button onclick="clearAiPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>📝 一句话录入（${fields}）</label><textarea id="aiInput" rows="4" placeholder="例如：${example}"></textarea></div><div style="font-size:11px;color:var(--muted);margin-bottom:10px">支持空格或换行分隔。不确定的字段我会弹出来让你确认。</div><button class="btn-main" onclick="parseAndSaveAiImport()">🚀 解析并录入</button><div style="margin-top:10px"><button class="btn-sm" onclick="closeModal();openMyAddCard()" style="background:#f3f4f6;color:#666">↩️ 手动录入</button></div>`;
-  openModal('🤖 AI 录入',html);
-  _formImgData='';
-}
-function previewAiImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=function(ev){ _formImgData=ev.target.result; document.getElementById('aiUpPlaceholder').classList.add('hidden'); var p=document.getElementById('aiUpPreview'); p.src=ev.target.result; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
-function clearAiPreview(){ document.getElementById('aiImgInput').value=''; document.getElementById('aiUpPlaceholder').classList.remove('hidden'); var p=document.getElementById('aiUpPreview'); p.classList.add('hidden'); p.src=''; _formImgData='' }
-
-function parseAiInput(text){
-  if(!text.trim()) return null;
-  // 优先按行切分，否则按空格切分
-  var tokens=text.trim().split(/[\n，,]+/).map(function(s){return s.trim()}).filter(Boolean);
-  if(tokens.length===1) tokens=text.trim().split(/\s+/).filter(Boolean);
-
-  var result={member:null,name:'',series:'',card_type:'',price:0,status:'',unknown:tokens.slice()};
-  var myGid=getUserGroupId()||'seventeen';
-  var myMembers=members.filter(function(m){return m.group_id===myGid});
-
-  // 识别成员
-  for(var i=0;i<tokens.length;i++){
-    var t=tokens[i];
-    var found=myMembers.find(function(m){return m.name===t || (m.aliases&&m.aliases.includes(t))});
-    if(!found) found=myMembers.find(function(m){return m.name.indexOf(t)>=0 || t.indexOf(m.name)>=0});
-    if(found){ result.member=found.id; result.unknown.splice(result.unknown.indexOf(t),1); break }
-  }
-
-  // 识别价格
-  for(var i=0;i<result.unknown.length;i++){
-    var t=result.unknown[i];
-    var m=t.match(/(?:¥|￥)?(\d+(?:\.\d+)?)/);
-    if(m){ result.price=parseFloat(m[1]); result.unknown.splice(i,1); i-- }
-  }
-
-  // 识别状态
-  for(var i=0;i<result.unknown.length;i++){
-    var t=result.unknown[i];
-    var foundStatus=STATUSES.find(function(s){return s===t || t.indexOf(s)>=0});
-    if(foundStatus){ result.status=foundStatus; result.unknown.splice(i,1); i-- }
-  }
-
-  if(!isCortisUser()){
-    // 识别品类
-    for(var i=0;i<result.unknown.length;i++){
-      var t=result.unknown[i];
-      var foundType=CARD_TYPES.find(function(ct){return ct===t || t.indexOf(ct)>=0});
-      if(foundType){ result.card_type=foundType; result.unknown.splice(i,1); i-- }
-    }
-    // 剩下的：第一个是卡名，第二个是系列（如果有）
-    if(result.unknown.length>0){ result.name=result.unknown[0]; result.unknown.shift() }
-    if(result.unknown.length>0){ result.series=result.unknown[0]; result.unknown.shift() }
-  } else {
-    // CORTIS：剩下第一个就是卡名
-    if(result.unknown.length>0){ result.name=result.unknown[0]; result.unknown.shift() }
-  }
-
-  // 默认值
-  if(!result.status) result.status='已到手';
-  if(!result.price) result.price=0;
-  if(!result.card_type && !isCortisUser()) result.card_type='其他';
-  return result;
-}
-
-async function parseAndSaveAiImport(){
-  var text=document.getElementById('aiInput').value;
-  var parsed=parseAiInput(text);
-  if(!parsed){ showToast('请输入内容'); return }
-
-  // 缺少关键信息则进入确认表单
-  if(!parsed.member || !parsed.name || parsed.price<=0 || !parsed.status || (!isCortisUser()&&!parsed.card_type)){
-    openAiConfirm(parsed);
-    return
-  }
-  await doAiSave(parsed);
-}
-
-function openAiConfirm(parsed){
-  var myGid=getUserGroupId()||'seventeen';
-  var myMembers=members.filter(function(m){return m.group_id===myGid});
-  var memOpts='<option value="">👥 团队</option>'+myMembers.map(function(m){return `<option value="${m.id}"${m.id===parsed.member?' selected':''}>${m.name}</option>`}).join('');
-  var typeOpts=CARD_TYPES.map(function(t){return `<option value="${t}"${t===parsed.card_type?' selected':''}>${t}</option>`}).join('');
-  var statusOpts=STATUSES.map(function(s){return `<option value="${s}"${s===parsed.status?' selected':''}>${s}</option>`}).join('');
-
-  if(isCortisUser()){
-    var html=`<div class="form-group"><label>成员</label><select id="aiConfirmMember"><option value="">👥 团队</option>${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
-  } else {
-    var html=`<div class="form-row"><div class="form-group"><label>成员 *</label><select id="aiConfirmMember">${memOpts}</select></div><div class="form-group"><label>卡名 *</label><input type="text" id="aiConfirmName" value="${(parsed.name||'').replace(/"/g,'&quot;')}"></div></div><div class="form-row"><div class="form-group"><label>系列</label><input type="text" id="aiConfirmSeries" value="${(parsed.series||'').replace(/"/g,'&quot;')}" placeholder="可选"></div><div class="form-group"><label>品类 *</label><select id="aiConfirmType">${typeOpts}</select></div></div><div class="form-row"><div class="form-group"><label>💰 价格（元）</label><input type="number" id="aiConfirmPrice" value="${parsed.price||''}" min="0"></div><div class="form-group"><label>状态</label><select id="aiConfirmStatus">${statusOpts}</select></div></div><button class="btn-main" onclick="saveAiConfirm()">✅ 确认录入</button>`;
-  }
-  openModal('🤖 确认录入信息',html);
-}
-
-async function saveAiConfirm(){
-  var parsed={
-    member:document.getElementById('aiConfirmMember').value,
-    name:document.getElementById('aiConfirmName').value.trim(),
-    price:parseFloat(document.getElementById('aiConfirmPrice').value)||0,
-    status:document.getElementById('aiConfirmStatus').value
-  };
-  if(!isCortisUser()){
-    parsed.series=document.getElementById('aiConfirmSeries').value.trim();
-    parsed.card_type=document.getElementById('aiConfirmType').value;
-  }
-  if(!parsed.member || !parsed.name || parsed.price<=0 || !parsed.status || (!isCortisUser()&&!parsed.card_type)){
-    showToast('请补全必填项'); return
-  }
-  await doAiSave(parsed);
-}
-
-async function doAiSave(parsed){
-  var cid='c'+Date.now();
-  var gid=getUserGroupId()||'seventeen';
-  var memberName=members.find(function(m){return m.id===parsed.member});
-  var recStatus=parsed.status;
-  // CORTIS 只有两种状态
-  if(isCortisUser() && recStatus!=='已到手' && recStatus!=='未发货') recStatus='未发货';
-
-  var cardData={
-    id:cid,
-    group_id:gid,
-    member_id:parsed.member||null,
-    name:parsed.name,
-    series:isCortisUser()?'':(parsed.series||''),
-    card_type:isCortisUser()?'其他':(parsed.card_type||'其他'),
-    image_url:_formImgData||null,
-    image_emoji:getEmoji(memberName?memberName.name:''),
-    created_by:currentUser.id
-  };
-
-  var r1=await supaInsert('cards',cardData);
-  if(r1.error){ showToast('添加失败: '+r1.error.message); return }
-  closeModal(); showToast('✅ 已录入卡库：'+parsed.name);
-  await refreshCurrentData();
-}
-
-// ═══════════════════ 从卡库选卡 ═══════════════════
-function openMyCardPicker(){
-  if(!currentUser){ showToast('请先登录'); return }
-  var gid=getUserGroupId();
-  var pool=gid?cards.filter(function(c){return c.group_id===gid}):cards.slice();
-  if(!pool.length){ showToast('卡库还是空的'); return }
-  var searchHtml=`<div class="form-group" style="margin-bottom:10px"><input type="text" id="pickSearch" placeholder="搜索卡名 / 成员 / 系列" oninput="filterPickerCards()" style="margin-bottom:0"></div>`;
-  var listHtml=`<div id="pickerList" style="max-height:55vh;overflow-y:auto">`+renderPickerCardList(pool)+`</div>`;
-  openModal('📚 从卡库选卡',searchHtml+listHtml);
-  window._pickerPool=pool;
-}
-
-function renderPickerCardList(pool){
-  return pool.map(function(c){
-    var m=members.find(function(x){return x.id===c.member_id});
-    var mn=m?m.name:'';
-    var img=c.image_url?`<img src="${c.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`:`<div style="font-size:22px">${getEmoji(mn)}</div>`;
-    return `<div class="card-item" style="cursor:pointer" onclick="recordPickedCard('${c.id}')">${img?`<div class="card-thumb">${img}</div>`:''}<div class="card-body"><h4>${c.name}</h4><div class="meta"><span class="tag tag-member">${mn}</span>${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span></div></div></div>`;
-  }).join('');
-}
-
-function filterPickerCards(){
-  var kw=document.getElementById('pickSearch').value.trim().toLowerCase();
-  var pool=window._pickerPool||[];
-  var filtered=pool.filter(function(c){
-    var m=members.find(function(x){return x.id===c.member_id});
-    var text=(c.name+' '+(c.series||'')+' '+(m?m.name:'')+' '+(c.card_type||'')).toLowerCase();
-    return text.indexOf(kw)>=0;
-  });
-  document.getElementById('pickerList').innerHTML=renderPickerCardList(filtered);
-}
-
-function recordPickedCard(cardId){
-  closeModal();
-  var card=cards.find(function(c){return c.id===cardId});
-  if(!card) return;
-  var m=members.find(function(x){return x.id===card.member_id});
-  var mn=m?m.name:'';
-  var gn=groups.find(function(g){return g.id===card.group_id});
-  var html=`<div style="display:flex;gap:10px;align-items:center;padding:12px;background:var(--tint,#faf5ff);border-radius:8px;margin-bottom:14px"><div style="width:48px;height:48px;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px">${getEmoji(mn)}</div><div><div style="font-weight:600">${mn} · ${card.name}</div><div style="font-size:12px;color:var(--muted)">${gn?gn.name:''}${card.series?' · '+card.series:''}</div></div></div><div class="form-group"><label>💰 价格（元）</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(function(s){return `<option>${s}</option>`}).join('')}</select></div><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><textarea id="recNote" rows="2" placeholder="如：走代购"></textarea></div><button class="btn-main" onclick="saveRecord('${card.id}')">✅ 记入卡册</button>`;
-  openModal('📝 记入卡册',html);
 }
 
 // ═══════════════════ 从卡册直接录入 ═══════════════════
@@ -779,7 +536,7 @@ function openMyAddCard(){
   var grpOpts=`<option value="seventeen">SEVENTEEN（13人）</option>`;
   var myGid=getUserGroupId()||'seventeen';
   var myMembers=members.filter(m=>m.group_id===myGid);
-  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option><option value="">👥 团队</option>${myMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
+  var html=`<input type="file" id="cardImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewCardImg(event)"><div class="form-group"><label>📸 卡面图片</label><div class="upload-area" id="cardUploadArea" onclick="document.getElementById('cardImgInput').click()"><div class="upload-placeholder" id="cardUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="cardUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('cardImgInput').setAttribute('capture','environment');document.getElementById('cardImgInput').click()">📸 拍照</button><button onclick="document.getElementById('cardImgInput').removeAttribute('capture');document.getElementById('cardImgInput').click()">🖼️ 相册</button><button onclick="clearCardPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>卡名 *</label><input type="text" id="cardName" placeholder="如：2025克拉岛随机卡"></div><div class="form-row"><div class="form-group"><label>成员 *</label><select id="cardMember"><option value="">请选择成员</option>${myMembers.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}</select></div><div class="form-group"><label>系列</label><select id="cardSeries" onchange="toggleNewField('series')">${seriesOpts}</select></div></div><div class="form-row"><div class="form-group"><label>品类 *</label><select id="cardType" onchange="toggleNewField('type')">${typeOpts}</select></div></div><div id="newSeriesGroup" class="form-group hidden"><label>新系列名称</label><input type="text" id="newSeriesName"></div><div id="newTypeGroup" class="form-group hidden"><label>新品类名称</label><input type="text" id="newTypeName"></div><div style="border-top:1px solid #eee;margin:8px 0;padding-top:8px;font-size:12px;color:var(--muted)">📝 卡册记录</div><div class="form-row"><div class="form-group"><label>💰 价格（元）*</label><input type="number" id="recPrice" placeholder="如：200" min="0"></div><div class="form-group"><label>📦 状态</label><select id="recStatus">${STATUSES.map(s=>`<option>${s}</option>`).join('')}</select></div></div><div class="form-row"><div class="form-group"><label>📅 购买日期</label><input type="date" id="recDate"></div><div class="form-group"><label>📝 备注</label><input type="text" id="recNote" placeholder="如：走代购"></div></div><button class="btn-main" onclick="saveMyCard()">✅ 录入卡册</button>`;
   openModal('📝 录入新卡',html);
   _formImgData='';
   setTimeout(function(){ toggleNewField('series'); toggleNewField('type') },50);
@@ -804,16 +561,16 @@ async function saveMyCard(){
   var status=document.getElementById('recStatus').value;
   var date=document.getElementById('recDate').value;
   var note=document.getElementById('recNote').value.trim();
-  if(!name||!type){ showToast('请填写卡面信息'); return }
+  if(!name||!mid||!type){ showToast('请填写卡面信息'); return }
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
   if(!price){ showToast('请填写价格'); return }
   var cid='c'+Date.now();
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
   var gid=getUserGroupId()||'seventeen';
-  var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await sb.from('cards').insert({id:cid,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -827,9 +584,9 @@ async function saveMyCortisCard(){
   if(!name){ showToast('请填写卡名'); return }
   if(!price){ showToast('请填写价格'); return }
   var cid='c'+Date.now();
-  var r=await supaInsert('cards',{id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await sb.from('cards').insert({id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
+  var r2=await sb.from('records').insert({id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -884,7 +641,7 @@ async function saveCard(){
   // 图片存 base64 在 image_url 里（小图用 <10MB 够用）
   // 新品类/新系列自动入库（下次显示在选项中）
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await supaInsert('cards',{id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var r=await sb.from('cards').insert({id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已添加');
   await refreshCurrentData();
@@ -919,7 +676,7 @@ async function saveEditCard(cardId){
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await supaUpdate('cards',{id:cardId},{group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null});
+  var r=await sb.from('cards').update({group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null}).eq('id',cardId);
   if(r.error){ showToast('更新失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已更新');
   await refreshCurrentData();
@@ -939,7 +696,7 @@ async function saveRecord(cardId){
   var date=document.getElementById('recDate').value;
   var note=document.getElementById('recNote').value.trim();
   if(!price){ showToast('请填写价格'); return }
-  var r=await supaInsert('records',{id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r=await sb.from('records').insert({id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   closeModal(); showToast('✅ 已记入卡册');
   await refreshCurrentData();
@@ -952,47 +709,17 @@ document.addEventListener('click',function(e){
   if(e.target.closest('.card-delete')||e.target.closest('.card-thumb')) return;
   if(!currentUser){ showToast('请先登录'); return }
   var cid=el.getAttribute('data-card-id');
-  var rid=el.getAttribute('data-record-id');
+  var card=cards.find(c=>c.id===cid);
+  if(!card) return;
 
   if(currentTab==='explore'){
-    var card=cards.find(c=>c.id===cid);
-    if(!card) return;
     if(isFounder(currentUser)){ openEditCard(card) }
     else { openRecordPanel(card) }
   } else if(currentTab==='my'){
-    // 卡册tab：有 record-id 时打开记录编辑
-    if(rid){
-      editMyRecord(rid);
-    } else if(isFounder(currentUser)){
-      var card=cards.find(c=>c.id===cid);
-      if(card) openEditCard(card);
-    }
+    // 卡册tab：CORTIS用户走自己的编辑逻辑（已在onclick里），其他人创始人点进编辑
+    if(!isCortisUser() && isFounder(currentUser)){ openEditCard(card) }
   }
 });
-
-// ═══════════════════ 编辑卡册记录 ═══════════════════
-function editMyRecord(rid){
-  var rec=records.find(function(r){return r.id===rid});
-  if(!rec) return;
-  var card=cards.find(function(c){return c.id===rec.card_id});
-  var cname=card?card.name:'未知卡';
-  var isCortis=isCortisUser();
-  var imgPreview='';
-  if(card&&card.image_url){
-    imgPreview=`<div style="text-align:center;margin-bottom:8px"><img src="${card.image_url}" style="max-width:100%;max-height:180px;border-radius:8px"><div style="font-size:11px;color:var(--muted);margin-top:4px">当前卡面</div></div>`;
-  }
-  var statusOpts=isCortis?`<option value="已到手"${rec.status==='已到手'?' selected':''}>✅ 已到手</option><option value="未发货"${rec.status==='未发货'?' selected':''}>📦 未发货</option>`:STATUSES.map(function(s){return `<option value="${s}"${rec.status===s?' selected':''}>${s}</option>`}).join('');
-  var html=imgPreview+`<div class="form-group"><label>💰 价格（元）</label><input type="number" id="editRecPrice" value="${rec.price||0}" min="0"></div><div class="form-group"><label>📦 状态</label><select id="editRecStatus">${statusOpts}</select></div><button class="btn-main" onclick="saveMyRecord('${rid}')">💾 保存</button>`;
-  openModal('✏️ 编辑 | '+cname,html);
-}
-
-async function saveMyRecord(rid){
-  var price=parseFloat(document.getElementById('editRecPrice').value)||0;
-  var status=document.getElementById('editRecStatus').value;
-  await supaUpdate('records',{id:rid},{price:price,status:status});
-  closeModal(); showToast('💾 已保存');
-  await refreshCurrentData();
-}
 
 // ═══════════════════ 全局 ═══════════════════
 document.addEventListener('click',function(e){ if(e.target.classList.contains('modal-overlay')&&e.target.id==='modal') closeModal() });
@@ -1001,15 +728,9 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModa
 // ═══════════════════ 启动 ═══════════════════
 (async function init(){
   try{
-    console.log('INIT START');
     await loadData();
-    // 第一次打开：再跑一次 refresh 确保 cards/records 获取完整（跟点击刷新按钮走同一路径）
-    await refreshCurrentData();
-    console.log('LOADED groups=', groups.length, 'cards=', cards.length, 'records=', records.length, 'users=', users.length);
     render();
-    console.log('RENDER DONE');
   }catch(err){
-    console.error('INIT ERROR', err);
     document.getElementById('mainContent').innerHTML='<div style="text-align:center;padding:40px;color:var(--danger)">加载失败: '+err.message+'<br><br>请检查网络连接</div>';
   }
 })();
