@@ -79,9 +79,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .album-banner-item .title{font-size:12px;font-weight:600;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .album-banner-item .count{font-size:11px;color:var(--muted);margin-top:4px}
 .album-banner-item .check{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
-.album-guide-large{width:100%;border-radius:var(--r);overflow:hidden;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;margin-bottom:14px}
-.album-guide-large img{width:100%;height:auto;display:block}
-.album-guide-progress{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+.album-guide-swiper{position:relative;width:100%;overflow:hidden;border-radius:var(--r);background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+.album-guide-track{display:flex;transition:transform .3s ease}
+.album-guide-slide{flex:0 0 100%;width:100%;cursor:pointer}
+.album-guide-slide img{width:100%;height:auto;display:block}
+.album-guide-dots{display:flex;justify-content:center;gap:6px;padding:10px 0}
+.album-guide-dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:background .2s}
+.album-guide-dot.active{background:var(--purple)}
+.album-guide-progress{font-size:12px;color:var(--muted);text-align:center;padding-bottom:8px}
+.album-guide-nav{position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.85);border:none;box-shadow:0 1px 4px rgba(0,0,0,.12);cursor:pointer;color:var(--text);font-size:14px;display:flex;align-items:center;justify-content:center;z-index:2}
+.album-guide-nav.prev{left:8px}
+.album-guide-nav.next{right:8px}
+.album-guide-nav:disabled{opacity:.3;cursor:default}
 .series-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .series-card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;position:relative;min-height:90px;display:flex;flex-direction:column;justify-content:space-between}
 .series-card .sc-name{font-size:15px;font-weight:600}
@@ -242,6 +251,12 @@ var _ALBUM_GUIDES={
         {version:'rev',number:4,member:'the8',x1:0.40,y1:0.61},
         {version:'rev',number:5,member:'the8',x1:0.51,y1:0.61}
       ]
+    },
+    {
+      src:'album_guides/v8_us_ur_guide.jpg',
+      name:'V8 US/UR 特典图鉴',
+      label:'US/UR特典',
+      slots:[]
     }
   ]
 };
@@ -460,6 +475,7 @@ function renderBySeries(cardList){
 
 function renderSeriesDetail(sname,cardList){
   var list=cardList.filter(function(c){ return (c.series||'未分类')===sname });
+  window._currentSeriesCards=list;
   var gid=list.length?list[0].group_id:null;
   var gn=gid?groups.find(function(g){ return g.id===gid }):null;
   var html=`<div class="series-detail-hd"><button class="back" onclick="backToSeries()">‹</button><h3>${sname}</h3></div>`;
@@ -525,14 +541,76 @@ function renderAlbumGuideLarge(sname,seriesCards){
   var guides=_ALBUM_GUIDES[sname]||[];
   if(!guides||!guides.length) return '';
   var owned=matchOwnedSlots(sname,seriesCards||[]);
-  var html='';
+  var html='<div class="album-guide-swiper" id="guideSwiper_'+sname+'">';
+  html+='<button class="album-guide-nav prev" id="btnPrev_'+sname+'" onclick="goGuideSlide(\''+sname+'\',-1)">‹</button>';
+  html+='<button class="album-guide-nav next" id="btnNext_'+sname+'" onclick="goGuideSlide(\''+sname+'\',1)">›</button>';
+  html+='<div class="album-guide-track" id="guideTrack_'+sname+'">';
   guides.forEach(function(g){
     var total=(g.slots||[]).length, ownCount=0;
     (g.slots||[]).forEach(function(s){ if(owned[s.version+'_'+s.number]) ownCount++ });
     var progress=total?`${ownCount}/${total}`:'0/0';
-    html+=`<div class="album-guide-large" onclick="openLightbox('${g.src}','','${g.name}','${sname}')"><img src="${g.src}" alt="${g.name}"><div class="album-guide-progress">${progress} · ${g.label||g.name} · 点击查看全图</div></div>`;
+    html+=`<div class="album-guide-slide" onclick="openLightbox('${g.src}','','${g.name}','${sname}')"><img src="${g.src}" alt="${g.name}"></div>`;
   });
+  html+='</div>';
+  html+='<div class="album-guide-dots" id="guideDots_'+sname+'"></div>';
+  var first=guides[0];
+  var firstProg=(first.slots||[]).length?(()=>{var oc=0;(first.slots||[]).forEach(function(s){if(owned[s.version+'_'+s.number])oc++});return `${oc}/${(first.slots||[]).length}`;})():'0/0';
+  html+=`<div class="album-guide-progress" id="guideProgress_${sname}">${firstProg} · ${first.label||first.name} · 左右滑动切换</div>`;
+  html+='</div>';
+  setTimeout(function(){initGuideSwiper(sname);},0);
   return html;
+}
+
+var _guideIdx={};
+function initGuideSwiper(sname){
+  var g=_ALBUM_GUIDES[sname]||[];
+  if(!g.length) return;
+  _guideIdx[sname]=0;
+  var dots=document.getElementById('guideDots_'+sname);
+  if(!dots) return;
+  dots.innerHTML='';
+  for(var i=0;i<g.length;i++){
+    var d=document.createElement('div');
+    d.className='album-guide-dot'+(i===0?' active':'');
+    dots.appendChild(d);
+  }
+  updateGuideNav(sname);
+  var el=document.getElementById('guideSwiper_'+sname);
+  if(!el) return;
+  var ts=0;
+  el.addEventListener('touchstart',function(e){ts=e.changedTouches[0].screenX;},{passive:true});
+  el.addEventListener('touchend',function(e){
+    var dx=e.changedTouches[0].screenX-ts;
+    if(Math.abs(dx)>40) goGuideSlide(sname,dx<0?1:-1);
+  },{passive:true});
+}
+function goGuideSlide(sname,dir){
+  var g=_ALBUM_GUIDES[sname]||[];
+  var idx=(_guideIdx[sname]||0)+dir;
+  if(idx<0||idx>=g.length) return;
+  _guideIdx[sname]=idx;
+  var track=document.getElementById('guideTrack_'+sname);
+  if(track) track.style.transform='translateX(-'+(idx*100)+'%)';
+  var dots=document.querySelectorAll('#guideDots_'+sname+' .album-guide-dot');
+  dots.forEach(function(d,i){d.classList.toggle('active',i===idx)});
+  updateGuideNav(sname);
+  var prog=document.getElementById('guideProgress_'+sname);
+  if(prog){
+    var item=g[idx];
+    var owned=matchOwnedSlots(sname,window._currentSeriesCards||[]);
+    var total=(item.slots||[]).length, oc=0;
+    (item.slots||[]).forEach(function(s){if(owned[s.version+'_'+s.number])oc++});
+    var p=total?`${oc}/${total}`:'0/0';
+    prog.textContent=p+' · '+item.label+' · 左右滑动切换';
+  }
+}
+function updateGuideNav(sname){
+  var g=_ALBUM_GUIDES[sname]||[];
+  var idx=_guideIdx[sname]||0;
+  var prev=document.getElementById('btnPrev_'+sname);
+  var next=document.getElementById('btnNext_'+sname);
+  if(prev) prev.disabled=idx===0;
+  if(next) next.disabled=idx===g.length-1;
 }
 
 function buildCardItem(c, founder, isRecord, recordObj){
