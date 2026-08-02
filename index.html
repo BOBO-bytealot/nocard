@@ -255,21 +255,38 @@ async function loadData(){
   // if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
 }
 
+var _CARD_COLS='id,group_id,member_id,name,series,card_type,image_emoji,note,created_by,created_at';
+async function loadCardImages(cardIds){
+  if(!cardIds||!cardIds.length) return;
+  var batchSize=5;
+  for(var i=0;i<cardIds.length;i+=batchSize){
+    var batch=cardIds.slice(i,i+batchSize);
+    var url=SUPABASE_URL+'/rest/v1/cards?select=id,image_url&id=in.('+batch.join(',')+')';
+    var resp=await fetch(url,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+    var data=await resp.json();
+    if(Array.isArray(data)){
+      data.forEach(function(c){
+        var card=cards.find(function(x){return x.id===c.id});
+        if(card) card.image_url=c.image_url;
+      });
+    }
+  }
+  render();
+}
 async function refreshCurrentData(){
   var uid=localStorage.getItem('kcard_user_id');
   var r1=await supaGet('users'); users=r1.data||[]; _cacheSet('users',users);
   var myGid=getUserGroupId();
-  var cUrl=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+myGid:'');
+  var cUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+myGid:'');
   var cResp=await fetch(cUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
   var cData=await cResp.json();
   cards=Array.isArray(cData)?cData:[]; _cardsHasMore=cards.length>=CARD_PAGE_SIZE;
   var r3=uid?await supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}):{data:[]}; records=r3.data||[];
-  // 确保卡册关联的 cards 也在 cards 数组里
   if(records.length){
     var existingIds={}; cards.forEach(function(c){ existingIds[c.id]=true });
     var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
     if(missingIds.length){
-      var xUrl=SUPABASE_URL+'/rest/v1/cards?select=*&id=in.('+missingIds.join(',')+')';
+      var xUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&id=in.('+missingIds.join(',')+')';
       var xResp=await fetch(xUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
       var xData=await xResp.json();
       if(Array.isArray(xData)&&xData.length) cards=cards.concat(xData);
@@ -277,6 +294,7 @@ async function refreshCurrentData(){
   }
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
   render();
+  if(cards.length) loadCardImages(cards.map(function(c){return c.id}));
 }
 
 async function loadMoreCards(){
@@ -284,7 +302,7 @@ async function loadMoreCards(){
   _cardsLoadingMore=true;
   var last=cards[cards.length-1];
   var myGid=getUserGroupId();
-  var u=SUPABASE_URL+'/rest/v1/cards?select=*&order=created_at.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+last.created_at+(myGid?'&group_id=eq.'+myGid:'');
+  var u=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+last.created_at+(myGid?'&group_id=eq.'+myGid:'');
   var r=await fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
   var moreData=await r.json();
   var more=Array.isArray(moreData)?moreData:[];
@@ -292,6 +310,7 @@ async function loadMoreCards(){
   _cardsHasMore=more.length>=CARD_PAGE_SIZE;
   _cardsLoadingMore=false;
   render();
+  if(more.length) loadCardImages(more.map(function(c){return c.id}));
 }
 
 function isFounder(u){ return u&&u.role==='founder' }
@@ -721,7 +740,7 @@ async function doAiSave(parsed){
 
   var r1=await supaInsert('cards',cardData);
   if(r1.error){ showToast('添加失败: '+r1.error.message); return }
-  closeModal(); showToast('✅ 已录入卡库：'+parsed.name);
+  _formImgData=''; closeModal(); showToast('✅ 已录入卡库：'+parsed.name);
   await refreshCurrentData();
 }
 
