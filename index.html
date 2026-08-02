@@ -79,13 +79,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .album-banner-item .title{font-size:12px;font-weight:600;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .album-banner-item .count{font-size:11px;color:var(--muted);margin-top:4px}
 .album-banner-item .check{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
-.album-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px 0}
-.album-grid-item{background:var(--card);border-radius:var(--rs);padding:8px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06);position:relative}
-.album-grid-item.owned{border:2px solid var(--purple)}
-.album-grid-item .cover{width:100%;aspect-ratio:3/4;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:6px;overflow:hidden}
-.album-grid-item .cover img{width:100%;height:100%;object-fit:cover}
-.album-grid-item .name{font-size:11px;color:var(--text);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.album-grid-item .check{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center}
+.album-guide-thumb{flex-shrink:0;width:140px;border-radius:var(--rs);overflow:hidden;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
+.album-guide-thumb img{width:100%;height:auto;display:block}
 .stats-bar{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .stat-item{flex:1}
 .stat-num{font-size:20px;font-weight:700;color:var(--purple)}
@@ -211,18 +206,11 @@ function supaDelete(table,filter){
 // ═══════════════════ 数据常量 ═══════════════════
 var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
 var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
-// 写死图鉴模板 demo（V8 小分队专辑卡）
-var _ALBUM_TEMPLATES={
-  'V8':{
-    title:'V8 1st Mini Album',
-    versions:[
-      {key:'rats nest',label:'standard rats nest',count:5,emoji:'🐭'},
-      {key:'rev',label:'standard rev',count:5,emoji:'⚪'},
-      {key:'weverse',label:'weverse ver',count:8,emoji:'💿'},
-      {key:'compact',label:'compact ver',count:6,emoji:'📀'},
-      {key:'kit',label:'kit ver',count:2,emoji:'🎧'}
-    ]
-  }
+// 图鉴大图配置：系列 -> 图鉴图片数组
+var _ALBUM_GUIDES={
+  'V8':[
+    {src:'album_guides/v8_album_template.jpg',label:'V8 专辑小卡图鉴'}
+  ]
 };
 var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
@@ -430,7 +418,7 @@ function renderBySeries(cardList){
   var html=jumpHtml;
   sorted.forEach(([sname,data])=>{
     var gid=data.list[0].group_id; var gn=groups.find(g=>g.id===gid);
-    html+=renderAlbumBanner(sname,data.list);
+    html+=renderAlbumGuideBanner(sname);
     html+=`<div class="series-block" id="ser_${sname}"><div class="sh"><h4>${sname}</h4><span class="sc">${data.list.length}张 · ${gn?gn.name:''}</span></div><div class="series-thumbs">`;
     data.list.sort((a,b)=>{
       var ma=members.findIndex(m=>m.id===a.member_id), mb=members.findIndex(m=>m.id===b.member_id);
@@ -448,56 +436,15 @@ function renderBySeries(cardList){
   return html;
 }
 
-function getOwnedCardsForSeries(sname){
-  return cards.filter(function(c){ return c.series===sname });
-}
-
-function matchAlbumItem(c, versionKey, seq){
-  if(!c || c.series!=='V8') return false;
-  var n=(c.name||'').toLowerCase();
-  if(versionKey==='rats nest') return n.indexOf('rats nest')>=0 || n.indexOf('黄版')>=0;
-  if(versionKey==='rev') return n.indexOf('rev')>=0 || n.indexOf('白版')>=0;
-  if(versionKey==='weverse') return n.indexOf('weverse')>=0;
-  if(versionKey==='compact') return n.indexOf('compact')>=0;
-  if(versionKey==='kit') return n.indexOf('kit')>=0 || n.indexOf('Kit')>=0;
-  return false;
-}
-
-function renderAlbumBanner(sname,list){
-  var tmpl=_ALBUM_TEMPLATES[sname];
-  if(!tmpl) return '';
-  var owned=getOwnedCardsForSeries(sname);
+function renderAlbumGuideBanner(sname){
+  var guides=_ALBUM_GUIDES[sname];
+  if(!guides||!guides.length) return '';
   var html='<div class="album-banner">';
-  tmpl.versions.forEach(function(v){
-    var ownedCount=0;
-    for(var i=1;i<=v.count;i++){
-      var has=owned.some(function(c){ return matchAlbumItem(c,v.key,i) });
-      if(has) ownedCount++;
-    }
-    html+=`<div class="album-banner-item${ownedCount===v.count?' owned':''}" onclick="openAlbumModal('${sname}','${v.key}')"><div class="cover"><span>${v.emoji}</span></div><div class="title">${v.label}</div><div class="count">${ownedCount}/${v.count}</div>${ownedCount===v.count?'<div class="check">✓</div>':''}</div>`;
+  guides.forEach(function(g){
+    html+=`<div class="album-guide-thumb" onclick="openLightbox('${g.src}','','${g.label}','${sname}')"><img src="${g.src}" alt="${g.label}"></div>`;
   });
   html+='</div>';
   return html;
-}
-
-function openAlbumModal(sname, versionKey){
-  var tmpl=_ALBUM_TEMPLATES[sname];
-  if(!tmpl) return;
-  var v=tmpl.versions.find(function(x){ return x.key===versionKey });
-  if(!v) return;
-  var owned=getOwnedCardsForSeries(sname);
-  var html=`<h3 style="margin-bottom:12px">${tmpl.title} · ${v.label}</h3><div class="album-grid">`;
-  for(var i=1;i<=v.count;i++){
-    var c=owned.find(function(x){ return matchAlbumItem(x,v.key,i) });
-    var m=c?members.find(function(x){ return x.id===c.member_id }):null;
-    var mn=m?m.name:'';
-    var en=c?getEmoji(mn):v.emoji;
-    html+=`<div class="album-grid-item${c?' owned':''}"><div class="cover">${c&&c.image_url?`<img src="${c.image_url}" alt="">`:`<span>${en}</span>`}</div><div class="name">#${i}${c?' · '+c.name:''}</div>${c?'<div class="check">✓</div>':''}</div>`;
-  }
-  html+='</div>';
-  document.getElementById('modalTitle').textContent='图鉴';
-  document.getElementById('modalBody').innerHTML=html;
-  document.getElementById('modal').classList.remove('hidden');
 }
 
 function buildCardItem(c, founder, isRecord, recordObj){
