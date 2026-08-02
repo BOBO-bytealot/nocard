@@ -81,6 +81,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .album-banner-item .check{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
 .album-guide-thumb{flex-shrink:0;width:140px;border-radius:var(--rs);overflow:hidden;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
 .album-guide-thumb img{width:100%;height:auto;display:block}
+.series-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.series-card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;position:relative;min-height:90px;display:flex;flex-direction:column;justify-content:space-between}
+.series-card .sc-name{font-size:15px;font-weight:600}
+.series-card .sc-meta{font-size:12px;color:var(--muted);margin-top:6px}
+.series-card .sc-arrow{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--pl);font-size:18px}
+.series-detail-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.series-detail-hd .back{width:32px;height:32px;border-radius:50%;border:none;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;color:var(--purple);font-size:16px}
+.series-detail-hd h3{flex:1;font-size:17px}
+.card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.card-grid .cg-item{background:var(--card);border-radius:var(--rs);padding:8px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
+.card-grid .cg-cover{width:100%;aspect-ratio:3/4;border-radius:6px;background:#f0ebe3;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:6px;overflow:hidden}
+.card-grid .cg-cover img{width:100%;height:100%;object-fit:cover}
+.card-grid .cg-name{font-size:11px;color:var(--text);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-grid .cg-member{font-size:10px;color:var(--muted);margin-top:2px}
 .stats-bar{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .stat-item{flex:1}
 .stat-num{font-size:20px;font-weight:700;color:var(--purple)}
@@ -216,7 +230,7 @@ var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
 
 // ═══════════════════ 全局状态 ═══════════════════
-var currentTab='my', currentView='member';
+var currentTab='my', currentView='member', currentSeries=null;
 var groups=[], members=[], users=[], cards=[], records=[];
 var currentUser=null;
 var _formImgData='';
@@ -348,7 +362,9 @@ function switchTab(tab){
   document.getElementById('nav-my').classList.toggle('active',tab==='my');
   render();
 }
-function switchView(view){ currentView=view; render() }
+function switchView(view){ currentView=view; currentSeries=null; render() }
+function enterSeries(sname){ currentSeries=sname; render() }
+function backToSeries(){ currentSeries=null; render() }
 
 function renderNavUsers(){
   var html='';
@@ -409,30 +425,41 @@ function renderByMember(cardList,founder){
 }
 
 function renderBySeries(cardList){
+  if(currentSeries) return renderSeriesDetail(currentSeries,cardList);
   var bySeries={};
   cardList.forEach(c=>{ var k=c.series||'未分类'; if(!bySeries[k]) bySeries[k]={name:k,list:[]}; bySeries[k].list.push(c) });
   var sorted=Object.entries(bySeries).sort((a,b)=>b[1].list.length-a[1].list.length);
-  var jumpHtml='<div class="jump-nav">';
-  sorted.forEach(([k,v])=>{ jumpHtml+=`<button class="jump-chip" onclick="scrollTo('ser_${k}')">${k}<span class="badge">${v.list.length}</span></button>` });
-  jumpHtml+='</div>';
-  var html=jumpHtml;
+  var html='<div class="series-list">';
   sorted.forEach(([sname,data])=>{
     var gid=data.list[0].group_id; var gn=groups.find(g=>g.id===gid);
-    html+=renderAlbumGuideBanner(sname);
-    html+=`<div class="series-block" id="ser_${sname}"><div class="sh"><h4>${sname}</h4><span class="sc">${data.list.length}张 · ${gn?gn.name:''}</span></div><div class="series-thumbs">`;
-    data.list.sort((a,b)=>{
-      var ma=members.findIndex(m=>m.id===a.member_id), mb=members.findIndex(m=>m.id===b.member_id);
-      return ma-mb;
-    });
-    var shown=0, maxShow=20;
-    data.list.forEach(c=>{
-      if(shown>=maxShow) return; shown++;
-      var m=members.find(x=>x.id===c.member_id); var mn=m?m.name:'';
-      html+=`<div class="series-thumb-item" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')"><div class="series-thumb-img">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span>${getEmoji(mn)}</span>`}</div><div class="series-thumb-name">${mn}</div></div>`;
-    });
-    if(data.list.length>maxShow) html+=`<div class="series-thumb-item" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">+${data.list.length-maxShow}张</div>`;
-    html+=`</div></div>`;
+    var guideCount=(_ALBUM_GUIDES[sname]||[]).length;
+    html+=`<div class="series-card" onclick="enterSeries('${sname}')"><div><div class="sc-name">${sname}</div><div class="sc-meta">${data.list.length}张 · ${gn?gn.name:''}${guideCount?' · '+guideCount+'张图鉴':''}</div></div><div class="sc-arrow">›</div></div>`;
   });
+  html+='</div>';
+  return html;
+}
+
+function renderSeriesDetail(sname,cardList){
+  var list=cardList.filter(function(c){ return (c.series||'未分类')===sname });
+  var gid=list.length?list[0].group_id:null;
+  var gn=gid?groups.find(function(g){ return g.id===gid }):null;
+  var html=`<div class="series-detail-hd"><button class="back" onclick="backToSeries()">‹</button><h3>${sname}</h3></div>`;
+  html+=renderAlbumGuideBanner(sname);
+  if(!list.length){
+    html+=`<div style="text-align:center;padding:40px;color:var(--muted)">这个系列还没有卡</div>`;
+    return html;
+  }
+  html+=`<div style="font-size:12px;color:var(--muted);margin:12px 0 8px">已有 ${list.length} 张 · ${gn?gn.name:''}</div>`;
+  html+='<div class="card-grid">';
+  list.sort(function(a,b){
+    var ma=members.findIndex(function(m){return m.id===a.member_id}), mb=members.findIndex(function(m){return m.id===b.member_id});
+    return ma-mb;
+  });
+  list.forEach(function(c){
+    var m=members.find(function(x){return x.id===c.member_id}); var mn=m?m.name:'';
+    html+=`<div class="cg-item" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')"><div class="cg-cover">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span>${getEmoji(mn)}</span>`}</div><div class="cg-name">${c.name}</div><div class="cg-member">${mn}</div></div>`;
+  });
+  html+='</div>';
   return html;
 }
 
