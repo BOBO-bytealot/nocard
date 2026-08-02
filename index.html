@@ -79,8 +79,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .album-banner-item .title{font-size:12px;font-weight:600;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .album-banner-item .count{font-size:11px;color:var(--muted);margin-top:4px}
 .album-banner-item .check{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
-.album-guide-thumb{flex-shrink:0;width:140px;border-radius:var(--rs);overflow:hidden;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer}
+.album-guide-thumb{flex-shrink:0;width:140px;border-radius:var(--rs);overflow:hidden;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;position:relative}
 .album-guide-thumb img{width:100%;height:auto;display:block}
+.album-guide-thumb .slot-mark{position:absolute;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.album-guide-thumb .slot-mark.owned{background:#22c55e}
+.album-guide-thumb .slot-mark.missing{background:#ef4444}
+.album-guide-progress{font-size:11px;color:var(--muted);text-align:center;margin-top:6px}
 .series-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .series-card{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;position:relative;min-height:90px;display:flex;flex-direction:column;justify-content:space-between}
 .series-card .sc-name{font-size:15px;font-weight:600}
@@ -220,10 +224,28 @@ function supaDelete(table,filter){
 // ═══════════════════ 数据常量 ═══════════════════
 var MEMBER_EMOJIS = {'崔胜哲':'🍒','尹净汉':'👼','洪知秀':'🦌','文俊辉':'🐱','权顺荣':'🐯','全圆佑':'🦊','李知勋':'🍚','徐明浩':'🐸','金珉奎':'🐶','李硕珉':'⚔️','夫胜宽':'🍊','崔瀚率':'🐻‍❄️','李灿':'🦦','赵雨凡':'🦅','金主训':'🐷','马丁':'🦒','严成玹':'🦊','安乾镐':'🐶'};
 var CARD_TYPES=['专辑卡','特典卡','随机卡','Lucky Draw','签售卡','打歌卡','快闪卡','其他'];
-// 图鉴大图配置：系列 -> 图鉴图片数组
+// 图鉴配置
+// guide: 单张大图。name显示在banner下；slots（可选）为图上每个卡位坐标，用于标已有/缺失。
+// slot字段: version, number, member(vernon/the8/both), x1,y1,x2,y2 为相对图片的比例坐标。
 var _ALBUM_GUIDES={
   'V8':[
-    {src:'album_guides/v8_album_template.jpg',label:'V8 专辑小卡图鉴'}
+    {
+      src:'album_guides/v8_album_template.jpg',
+      name:'V8 专辑小卡图鉴',
+      label:'专辑卡',
+      slots:[
+        {version:'rats nest',number:1,member:'both',x1:0.10,y1:0.38},
+        {version:'rats nest',number:2,member:'the8',x1:0.20,y1:0.38},
+        {version:'rats nest',number:3,member:'the8',x1:0.30,y1:0.38},
+        {version:'rats nest',number:4,member:'vernon',x1:0.40,y1:0.38},
+        {version:'rats nest',number:5,member:'vernon',x1:0.51,y1:0.38},
+        {version:'rev',number:1,member:'both',x1:0.10,y1:0.61},
+        {version:'rev',number:2,member:'the8',x1:0.20,y1:0.61},
+        {version:'rev',number:3,member:'the8',x1:0.30,y1:0.61},
+        {version:'rev',number:4,member:'the8',x1:0.40,y1:0.61},
+        {version:'rev',number:5,member:'the8',x1:0.51,y1:0.61}
+      ]
+    }
   ]
 };
 var STATUSES=['未发货','在途','已到手','可出','待售'];
@@ -444,7 +466,7 @@ function renderSeriesDetail(sname,cardList){
   var gid=list.length?list[0].group_id:null;
   var gn=gid?groups.find(function(g){ return g.id===gid }):null;
   var html=`<div class="series-detail-hd"><button class="back" onclick="backToSeries()">‹</button><h3>${sname}</h3></div>`;
-  html+=renderAlbumGuideBanner(sname);
+  html+=renderAlbumGuideBanner(sname,list);
   if(!list.length){
     html+=`<div style="text-align:center;padding:40px;color:var(--muted)">这个系列还没有卡</div>`;
     return html;
@@ -463,12 +485,62 @@ function renderSeriesDetail(sname,cardList){
   return html;
 }
 
-function renderAlbumGuideBanner(sname){
-  var guides=_ALBUM_GUIDES[sname];
+function _normVersion(name){
+  var low=(name||'').toLowerCase();
+  if(/rats[\s_-]?nest/.test(low)||low.indexOf('黄版')>-1) return 'rats nest';
+  if(/\brev\b/.test(low)||low.indexOf('白版')>-1) return 'rev';
+  if(/weverse/.test(low)) return 'weverse';
+  if(/compact/.test(low)) return 'compact';
+  if(/\bkit\b/.test(low)) return 'kit';
+  return '';
+}
+function _extractSlotNum(name, version){
+  var n=name||'';
+  if(version){
+    var esc=version.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    var re=new RegExp(esc+'[\s/\\-]*(\d+)','i');
+    var m=n.match(re);
+    if(m) return parseInt(m[1],10);
+  }
+  var all=n.match(/\b(\d+)\b/g);
+  if(all&&all.length) return parseInt(all[all.length-1],10);
+  return 0;
+}
+function _isPreciseSlotCard(name){
+  var low=(name||'').toLowerCase();
+  // target/us/eu/el/合照 等特典/合照卡，命名里没有明确编号，不算入标准图鉴进度
+  if(/target|us\/eu|el特典|合照|特典/.test(low)) return false;
+  var v=_normVersion(name);
+  if(!v) return false;
+  var num=_extractSlotNum(name, v);
+  return num>0;
+}
+function matchOwnedSlots(sname,seriesCards){
+  var ownedKeys={};
+  seriesCards.forEach(function(c){
+    var version=_normVersion(c.name);
+    var num=_extractSlotNum(c.name, version);
+    if(version && num>0) ownedKeys[version+'_'+num]=c;
+  });
+  return ownedKeys;
+}
+function renderAlbumGuideBanner(sname,seriesCards){
+  var guides=_ALBUM_GUIDES[sname]||[];
   if(!guides||!guides.length) return '';
+  var owned=matchOwnedSlots(sname,seriesCards||[]);
   var html='<div class="album-banner">';
   guides.forEach(function(g){
-    html+=`<div class="album-guide-thumb" onclick="openLightbox('${g.src}','','${g.label}','${sname}')"><img src="${g.src}" alt="${g.label}"></div>`;
+    var total=(g.slots||[]).length, ownCount=0;
+    var marks='';
+    (g.slots||[]).forEach(function(s){
+      var key=s.version+'_'+s.number;
+      var isOwned=!!owned[key];
+      if(isOwned) ownCount++;
+      var left=(s.x1*100)+'%', top=(s.y1*100)+'%';
+      marks+=`<span class="slot-mark ${isOwned?'owned':'missing'}" style="left:${left};top:${top}" title="${s.version} ${s.number}"></span>`;
+    });
+    var progress=total?`${ownCount}/${total}`:'0/0';
+    html+=`<div class="album-guide-thumb" onclick="openLightbox('${g.src}','','${g.name}','${sname}')"><img src="${g.src}" alt="${g.name}">${marks}<div class="album-guide-progress">${progress} · ${g.label||g.name}</div></div>`;
   });
   html+='</div>';
   return html;
