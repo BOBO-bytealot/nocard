@@ -503,6 +503,7 @@ function renderSeriesDetail(sname,cardList){
   var gid=list.length?list[0].group_id:null;
   var gn=gid?groups.find(function(g){ return g.id===gid }):null;
   var html=`<div class="series-detail-hd"><button class="back" onclick="backToSeries()">‹</button><h3>${sname}</h3></div>`;
+  html+=`<input type="file" id="guideUpload_${sname}" accept="image/*" class="hidden" onchange="handleGuideUpload(event,'${sname}')">`;
   html+=renderAlbumGuideLarge(sname,list);
   if(!list.length){
     html+=`<div style="text-align:center;padding:40px;color:var(--muted)">这个系列还没有卡</div>`;
@@ -519,7 +520,6 @@ function renderSeriesDetail(sname,cardList){
     html+=`<div class="cg-item" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')"><div class="cg-cover">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span>${getEmoji(mn)}</span>`}</div><div class="cg-name">${c.name}</div><div class="cg-member">${mn}</div></div>`;
   });
   html+='</div>';
-  html+=`<div style="margin-top:16px;text-align:center"><input type="file" id="guideUpload_${sname}" accept="image/*" class="hidden" onchange="handleGuideUpload(event,'${sname}')"><button class="btn-add" onclick="document.getElementById('guideUpload_${sname}').click()">+ 上传图鉴</button></div>`;
   return html;
 }
 function handleGuideUpload(e,sname){
@@ -580,7 +580,6 @@ function matchOwnedSlots(sname,seriesCards){
 }
 function renderAlbumGuideLarge(sname,seriesCards){
   var guides=_ALBUM_GUIDES[sname]||[];
-  if(!guides||!guides.length) return '';
   var seriesCount=(seriesCards||[]).length;
   var html='<div class="album-guide-swiper" id="guideSwiper_'+sname+'">';
   html+='<button class="album-guide-nav prev" id="btnPrev_'+sname+'" onclick="goGuideSlide(\''+sname+'\',-1)">‹</button>';
@@ -589,11 +588,18 @@ function renderAlbumGuideLarge(sname,seriesCards){
   guides.forEach(function(g){
     html+=`<div class="album-guide-slide" onclick="openLightbox('${g.src}','','${g.name}','${sname}')"><img src="${g.src}" alt="${g.name}"></div>`;
   });
+  // 滑动最后一张是上传按钮
+  html+=`<div class="album-guide-slide" style="display:flex;align-items:center;justify-content:center;background:var(--card);min-height:200px;cursor:pointer" onclick="document.getElementById('guideUpload_${sname}').click()"><div style="text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">+</div><div style="font-size:13px">上传图鉴</div></div></div>`;
   html+='</div>';
   html+='<div class="album-guide-dots" id="guideDots_'+sname+'"></div>';
-  var first=guides[0];
-  var firstProg=seriesCount+'张 · '+first.label;
-  html+=`<div class="album-guide-progress" id="guideProgress_${sname}">${firstProg} · 左右滑动切换</div>`;
+  var progText=seriesCount+'张';
+  if(guides.length){
+    var first=guides[0];
+    progText+=' · '+first.label;
+  } else {
+    progText+=' · 暂无图鉴';
+  }
+  html+=`<div class="album-guide-progress" id="guideProgress_${sname}">${progText} · 左右滑动切换</div>`;
   html+='</div>';
   setTimeout(function(){initGuideSwiper(sname);},0);
   return html;
