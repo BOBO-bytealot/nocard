@@ -540,22 +540,19 @@ function matchOwnedSlots(sname,seriesCards){
 function renderAlbumGuideLarge(sname,seriesCards){
   var guides=_ALBUM_GUIDES[sname]||[];
   if(!guides||!guides.length) return '';
-  var owned=matchOwnedSlots(sname,seriesCards||[]);
+  var seriesCount=(seriesCards||[]).length;
   var html='<div class="album-guide-swiper" id="guideSwiper_'+sname+'">';
   html+='<button class="album-guide-nav prev" id="btnPrev_'+sname+'" onclick="goGuideSlide(\''+sname+'\',-1)">‹</button>';
   html+='<button class="album-guide-nav next" id="btnNext_'+sname+'" onclick="goGuideSlide(\''+sname+'\',1)">›</button>';
   html+='<div class="album-guide-track" id="guideTrack_'+sname+'">';
   guides.forEach(function(g){
-    var total=(g.slots||[]).length, ownCount=0;
-    (g.slots||[]).forEach(function(s){ if(owned[s.version+'_'+s.number]) ownCount++ });
-    var progress=total?`${ownCount}/${total}`:'0/0';
     html+=`<div class="album-guide-slide" onclick="openLightbox('${g.src}','','${g.name}','${sname}')"><img src="${g.src}" alt="${g.name}"></div>`;
   });
   html+='</div>';
   html+='<div class="album-guide-dots" id="guideDots_'+sname+'"></div>';
   var first=guides[0];
-  var firstProg=(first.slots||[]).length?(()=>{var oc=0;(first.slots||[]).forEach(function(s){if(owned[s.version+'_'+s.number])oc++});return `${oc}/${(first.slots||[]).length}`;})():'0/0';
-  html+=`<div class="album-guide-progress" id="guideProgress_${sname}">${firstProg} · ${first.label||first.name} · 左右滑动切换</div>`;
+  var firstProg=seriesCount+'张 · '+first.label;
+  html+=`<div class="album-guide-progress" id="guideProgress_${sname}">${firstProg} · 左右滑动切换</div>`;
   html+='</div>';
   setTimeout(function(){initGuideSwiper(sname);},0);
   return html;
@@ -597,11 +594,8 @@ function goGuideSlide(sname,dir){
   var prog=document.getElementById('guideProgress_'+sname);
   if(prog){
     var item=g[idx];
-    var owned=matchOwnedSlots(sname,window._currentSeriesCards||[]);
-    var total=(item.slots||[]).length, oc=0;
-    (item.slots||[]).forEach(function(s){if(owned[s.version+'_'+s.number])oc++});
-    var p=total?`${oc}/${total}`:'0/0';
-    prog.textContent=p+' · '+item.label+' · 左右滑动切换';
+    var seriesCount=(window._currentSeriesCards||[]).length;
+    prog.textContent=seriesCount+'张 · '+item.label+' · 左右滑动切换';
   }
 }
 function updateGuideNav(sname){
