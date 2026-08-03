@@ -260,6 +260,29 @@ var _ALBUM_GUIDES={
     }
   ]
 };
+function _loadUserGuides(){
+  try{
+    var raw=localStorage.getItem('kcard_user_guides');
+    if(!raw) return;
+    var obj=JSON.parse(raw);
+    for(var k in obj){
+      if(_ALBUM_GUIDES[k]) _ALBUM_GUIDES[k]=_ALBUM_GUIDES[k].concat(obj[k]);
+      else _ALBUM_GUIDES[k]=obj[k];
+    }
+  }catch(e){}
+}
+_loadUserGuides();
+function _saveUserGuide(sname,guide){
+  try{
+    var raw=localStorage.getItem('kcard_user_guides')||'{}';
+    var obj=JSON.parse(raw);
+    if(!obj[sname]) obj[sname]=[];
+    obj[sname].push(guide);
+    localStorage.setItem('kcard_user_guides',JSON.stringify(obj));
+    if(_ALBUM_GUIDES[sname]) _ALBUM_GUIDES[sname].push(guide);
+    else _ALBUM_GUIDES[sname]=[guide];
+  }catch(e){ alert('保存失败: '+e.message) }
+}
 var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
 
@@ -324,7 +347,7 @@ async function loadData(){
 var _CARD_COLS='id,group_id,member_id,name,series,card_type,image_emoji,note,created_by,created_at';
 async function loadCardImages(cardIds){
   if(!cardIds||!cardIds.length) return;
-  var batchSize=5;
+  var batchSize=1;
   for(var i=0;i<cardIds.length;i+=batchSize){
     var batch=cardIds.slice(i,i+batchSize);
     var url=SUPABASE_URL+'/rest/v1/cards?select=id,image_url&id=in.('+batch.join(',')+')';
@@ -336,8 +359,9 @@ async function loadCardImages(cardIds){
         if(card) card.image_url=c.image_url;
       });
     }
+    // 每加载完一张就渲染一次，避免等待全部加载
+    render();
   }
-  render();
 }
 async function refreshCurrentData(){
   var uid=localStorage.getItem('kcard_user_id');
@@ -495,7 +519,24 @@ function renderSeriesDetail(sname,cardList){
     html+=`<div class="cg-item" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')"><div class="cg-cover">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span>${getEmoji(mn)}</span>`}</div><div class="cg-name">${c.name}</div><div class="cg-member">${mn}</div></div>`;
   });
   html+='</div>';
+  html+=`<div style="margin-top:16px;text-align:center"><input type="file" id="guideUpload_${sname}" accept="image/*" class="hidden" onchange="handleGuideUpload(event,'${sname}')"><button class="btn-add" onclick="document.getElementById('guideUpload_${sname}').click()">+ 上传图鉴</button></div>`;
   return html;
+}
+function handleGuideUpload(e,sname){
+  var file=e.target.files[0];
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var base64=ev.target.result;
+    var name=prompt('图鉴名称（如：V8 签售卡图鉴）：',''+sname+' 图鉴');
+    if(!name) return;
+    var label=prompt('图鉴标签（如：签售卡）：','其他');
+    if(!label) label='其他';
+    var guide={src:base64,name:name,label:label,slots:[]};
+    _saveUserGuide(sname,guide);
+    if(currentSeries===sname) render();
+  };
+  reader.readAsDataURL(file);
 }
 
 function _normVersion(name){
