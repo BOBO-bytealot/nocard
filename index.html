@@ -264,7 +264,9 @@ var _ALBUM_GUIDES={
     }
   ]
 };
+var _ALBUM_GUIDES_DB={};
 function _loadUserGuides(){
+  // 兼容旧数据：读取本地图鉴并入内存，但不再作为写入目标
   try{
     var raw=localStorage.getItem('kcard_user_guides');
     if(!raw) return;
@@ -276,16 +278,26 @@ function _loadUserGuides(){
   }catch(e){}
 }
 _loadUserGuides();
-function _saveUserGuide(sname,guide){
-  try{
-    var raw=localStorage.getItem('kcard_user_guides')||'{}';
-    var obj=JSON.parse(raw);
-    if(!obj[sname]) obj[sname]=[];
-    obj[sname].push(guide);
-    localStorage.setItem('kcard_user_guides',JSON.stringify(obj));
-    if(_ALBUM_GUIDES[sname]) _ALBUM_GUIDES[sname].push(guide);
-    else _ALBUM_GUIDES[sname]=[guide];
-  }catch(e){ alert('保存失败: '+e.message) }
+function mergeAlbumGuides(rows){
+  rows=rows||[];
+  rows.forEach(function(row){
+    _ALBUM_GUIDES_DB[row.id]=row;
+    var guide={id:row.id,series:row.series,name:row.name,label:row.label,src:row.image_url,created_by:row.created_by,slots:[]};
+    var list=_ALBUM_GUIDES[row.series];
+    if(!list){ _ALBUM_GUIDES[row.series]=[guide]; return; }
+    var exists=list.find(function(g){return g.id===row.id});
+    if(!exists) list.push(guide);
+  });
+}
+async function saveAlbumGuide(sname,name,label,base64){
+  if(!currentUser){ showToast('请先登录'); return; }
+  var guide={id:genId('ag'),series:sname,name:name,label:label,src:base64,created_by:currentUser.id,slots:[]};
+  var r=await supaInsert('album_guides',{id:guide.id,series:sname,name:name,label:label,image_url:base64,created_by:currentUser.id});
+  if(r.error){ alert('保存失败: '+r.error.message); return; }
+  _ALBUM_GUIDES_DB[guide.id]=guide;
+  if(_ALBUM_GUIDES[sname]) _ALBUM_GUIDES[sname].push(guide);
+  else _ALBUM_GUIDES[sname]=[guide];
+  if(currentSeries===sname) render();
 }
 var STATUSES=['未发货','在途','已到手','可出','待售'];
 var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-arrived'};
@@ -406,6 +418,8 @@ async function refreshCurrentData(){
     }
   }
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
+  var agRes=await supaGet('album_guides');
+  mergeAlbumGuides(agRes.data);
   render();
   if(cards.length) loadCardImages(cards.map(function(c){return c.id}));
 }
@@ -545,19 +559,17 @@ function renderSeriesDetail(sname,cardList){
   html+='</div>';
   return html;
 }
-function handleGuideUpload(e,sname){
+async function handleGuideUpload(e,sname){
   var file=e.target.files[0];
   if(!file) return;
   var reader=new FileReader();
-  reader.onload=function(ev){
-    var base64=ev.target.result;
+  reader.onload=async function(ev){
+    var base64=await compressImage(ev.target.result);
     var name=prompt('图鉴名称（如：V8 签售卡图鉴）：',''+sname+' 图鉴');
     if(!name) return;
     var label=prompt('图鉴标签（如：签售卡）：','其他');
     if(!label) label='其他';
-    var guide={src:base64,name:name,label:label,slots:[]};
-    _saveUserGuide(sname,guide);
-    if(currentSeries===sname) render();
+    await saveAlbumGuide(sname,name,label,base64);
   };
   reader.readAsDataURL(file);
 }
@@ -609,7 +621,11 @@ function renderAlbumGuideLarge(sname,seriesCards){
   html+='<button class="album-guide-nav next" id="btnNext_'+sname+'" onclick="goGuideSlide(\''+sname+'\',1)">›</button>';
   html+='<div class="album-guide-track" id="guideTrack_'+sname+'">';
   guides.forEach(function(g){
-    html+=`<div class="album-guide-slide" onclick="openLightbox('${g.src}','','${g.name}','${sname}')"><img src="${g.src}" alt="${g.name}"></div>`;
+    var delBtn='';
+    if(isFounder(currentUser) && g.created_by){
+      delBtn=`<button class="card-delete" style="position:absolute;top:6px;right:6px;z-index:3" onclick="event.stopPropagation();confirmDeleteGuide(event,'${g.id}','${sname}')">×</button>`;
+    }
+    html+=`<div class="album-guide-slide" style="position:relative" onclick="openLightbox('${g.src}','','${g.name}','${sname}')">${delBtn}<img src="${g.src}" alt="${g.name}"></div>`;
   });
   // 滑动最后一张是上传按钮
   html+=`<div class="album-guide-slide" style="display:flex;align-items:center;justify-content:center;background:var(--card);min-height:200px;cursor:pointer" onclick="document.getElementById('guideUpload_${sname}').click()"><div style="text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">+</div><div style="font-size:13px">上传图鉴</div></div></div>`;
@@ -618,7 +634,7 @@ function renderAlbumGuideLarge(sname,seriesCards){
   var progText=seriesCount+'张';
   if(guides.length){
     var first=guides[0];
-    progText+=' · '+first.label;
+    progText+=' · '+first.name+' · '+first.label;
   } else {
     progText+=' · 暂无图鉴';
   }
@@ -665,7 +681,7 @@ function goGuideSlide(sname,dir){
   if(prog){
     var item=g[idx];
     var seriesCount=(window._currentSeriesCards||[]).length;
-    prog.textContent=seriesCount+'张 · '+item.label+' · 左右滑动切换';
+    prog.textContent=seriesCount+'张 · '+item.name+' · '+item.label+' · 左右滑动切换';
   }
 }
 function updateGuideNav(sname){
@@ -800,6 +816,25 @@ async function confirmDelete(event,type,id){
     else { await supaDelete('records',{id:id}); showToast('🗑️ 记录已删除') }
     btn.classList.remove('confirming'); btn.textContent='×';
     await refreshCurrentData();
+  } else {
+    btn.classList.add('confirming'); btn.textContent='确认?';
+    var to=setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000);
+    btn.setAttribute('data-timeout',to);
+  }
+}
+async function confirmDeleteGuide(event,id,sname){
+  var btn=event.target;
+  if(btn.classList.contains('confirming')){
+    var t=btn.getAttribute('data-timeout');
+    if(t){ clearTimeout(parseInt(t,10)); btn.removeAttribute('data-timeout') }
+    var r=await supaDelete('album_guides',{id:id});
+    if(r.error){ showToast('删除失败: '+r.error.message); btn.classList.remove('confirming'); btn.textContent='×'; return; }
+    var list=_ALBUM_GUIDES[sname];
+    if(list){ _ALBUM_GUIDES[sname]=list.filter(function(g){return g.id!==id}); }
+    delete _ALBUM_GUIDES_DB[id];
+    showToast('🗑️ 图鉴已删除');
+    btn.classList.remove('confirming'); btn.textContent='×';
+    if(currentSeries===sname) render();
   } else {
     btn.classList.add('confirming'); btn.textContent='确认?';
     var to=setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000);
