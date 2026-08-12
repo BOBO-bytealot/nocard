@@ -218,12 +218,16 @@ function supaInsert(table,data){
 }
 function supaUpdate(table,filter,data){
   var u=SUPABASE_URL+'/rest/v1/'+table;
-  for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
+  var qs=[];
+  for(var k in filter) qs.push(k+'=eq.'+encodeURIComponent(filter[k]));
+  if(qs.length) u+='?'+qs.join('&');
   return fetch(u,{method:'PATCH',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
 }
 function supaDelete(table,filter){
   var u=SUPABASE_URL+'/rest/v1/'+table;
-  for(var k in filter) u+='?'+k+'=eq.'+encodeURIComponent(filter[k]);
+  var qs=[];
+  for(var k in filter) qs.push(k+'=eq.'+encodeURIComponent(filter[k]));
+  if(qs.length) u+='?'+qs.join('&');
   return fetch(u,{method:'DELETE',headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(function(r){ if(r.ok) return {error:null}; return r.text().then(function(t){ return {error:{message:'HTTP '+r.status+': '+t}} }) }).catch(function(e){ return {error:e} });
 }
 
@@ -300,9 +304,32 @@ function _cacheClear(){ for(var i=localStorage.length-1;i>=0;i--){ var k=localSt
 
 function getEmoji(name){ if(!name) return '👥'; var n=name.split('(')[0]; return MEMBER_EMOJIS[n]||name[0] }
 
+function genId(prefix){ return prefix + Date.now() + '_' + Math.random().toString(36).substring(2,6) }
+async function compressImage(dataUrl, opts){
+  opts=opts||{};
+  var maxShort=opts.maxShort||720, quality=opts.quality||0.75, type=opts.type||'image/jpeg';
+  return new Promise(function(resolve){
+    var img=new Image();
+    img.onload=function(){
+      try{
+        var w=img.width, h=img.height;
+        var short=Math.min(w,h), ratio=Math.min(1, maxShort/short);
+        w=Math.round(w*ratio); h=Math.round(h*ratio);
+        var canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        var ctx=canvas.getContext('2d');
+        if(type==='image/jpeg'){ ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h); }
+        ctx.drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL(type,quality));
+      }catch(e){ resolve(dataUrl) }
+    };
+    img.onerror=function(){ resolve(dataUrl) };
+    img.src=dataUrl;
+  });
+}
+
 // ═══════════════════ 数据加载 ═══════════════════
 async function loadData(){
-  // 静态数据优先读缓存
   groups=_cacheGet('groups');
   members=_cacheGet('members');
   users=_cacheGet('users');
@@ -313,7 +340,6 @@ async function loadData(){
   if(needMembers) staticPromises.push(supaGet('members',{order:'sort_order'}));
   if(needUsers) staticPromises.push(supaGet('users'));
 
-  // cards/records 全部交给 refreshCurrentData 处理
   var uid=localStorage.getItem('kcard_user_id');
   var dynamicPromises=[
     supaGet('invite_codes',{limit:1}).then(function(r){ return {data:(r.data&&r.data[0])||null} })
@@ -327,7 +353,7 @@ async function loadData(){
   if(needGroups){ groups=staticResults[si].data||[]; _cacheSet('groups',groups); si++ }
   if(needMembers){ members=staticResults[si].data||[]; _cacheSet('members',members); si++ }
   if(needUsers){ users=staticResults[si].data||[]; _cacheSet('users',users); si++ }
-  // cards 留空，refreshCurrentData 会填充
+
   var inviteData=dynamicResults[0].data;
   records=dynamicResults[1].data||[];
   if(!inviteData){
@@ -336,30 +362,27 @@ async function loadData(){
     window._inviteCode=code;
   } else { window._inviteCode=inviteData.code }
 
-  // 恢复当前用户
-  var uid=localStorage.getItem('kcard_user_id');
   if(uid) currentUser=users.find(u=>u.id===uid)||null;
-  if(!currentUser&&users.length>0&&users[0].role==='founder'){ currentUser=users[0]; localStorage.setItem('kcard_user_id',currentUser.id) }
-  // 实时订阅关闭，改手动刷新，避免后台频繁全量刷新
-  // if(currentUser) sb.channel('db-changes').on('postgres_changes',{event:'*',schema:'public'},function(){refreshCurrentData()}).subscribe();
+  if(!currentUser && users.length>0){ currentUser=users[0]; localStorage.setItem('kcard_user_id',currentUser.id) }
 }
 
 var _CARD_COLS='id,group_id,member_id,name,series,card_type,image_emoji,note,created_by,created_at';
 async function loadCardImages(cardIds){
   if(!cardIds||!cardIds.length) return;
-  var batchSize=1;
+  var batchSize=8;
   for(var i=0;i<cardIds.length;i+=batchSize){
     var batch=cardIds.slice(i,i+batchSize);
     var url=SUPABASE_URL+'/rest/v1/cards?select=id,image_url&id=in.('+batch.join(',')+')';
-    var resp=await fetch(url,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-    var data=await resp.json();
-    if(Array.isArray(data)){
-      data.forEach(function(c){
-        var card=cards.find(function(x){return x.id===c.id});
-        if(card) card.image_url=c.image_url;
-      });
-    }
-    // 每加载完一张就渲染一次，避免等待全部加载
+    try{
+      var resp=await fetch(url,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      var data=await resp.json();
+      if(Array.isArray(data)){
+        data.forEach(function(c){
+          var card=cards.find(function(x){return x.id===c.id});
+          if(card) card.image_url=c.image_url;
+        });
+      }
+    }catch(e){ console.warn('loadCardImages error',e) }
     render();
   }
 }
@@ -367,7 +390,7 @@ async function refreshCurrentData(){
   var uid=localStorage.getItem('kcard_user_id');
   var r1=await supaGet('users'); users=r1.data||[]; _cacheSet('users',users);
   var myGid=getUserGroupId();
-  var cUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+myGid:'');
+  var cUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc,id.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
   var cResp=await fetch(cUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
   var cData=await cResp.json();
   cards=Array.isArray(cData)?cData:[]; _cardsHasMore=cards.length>=CARD_PAGE_SIZE;
@@ -376,10 +399,10 @@ async function refreshCurrentData(){
     var existingIds={}; cards.forEach(function(c){ existingIds[c.id]=true });
     var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
     if(missingIds.length){
-      var xUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&id=in.('+missingIds.join(',')+')';
+      var xUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&id=in.('+missingIds.map(encodeURIComponent).join(',')+')';
       var xResp=await fetch(xUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
       var xData=await xResp.json();
-      if(Array.isArray(xData)&&xData.length) cards=cards.concat(xData);
+      if(Array.isArray(xData)) cards=cards.concat(xData);
     }
   }
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
@@ -392,7 +415,7 @@ async function loadMoreCards(){
   _cardsLoadingMore=true;
   var last=cards[cards.length-1];
   var myGid=getUserGroupId();
-  var u=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+last.created_at+(myGid?'&group_id=eq.'+myGid:'');
+  var u=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc,id.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+encodeURIComponent(last.created_at)+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
   var r=await fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
   var moreData=await r.json();
   var more=Array.isArray(moreData)?moreData:[];
@@ -695,8 +718,7 @@ function renderMyCards(){
 }
 
 function renderMyByMember(myRecs){
-  // 关联card数据
-  myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
+  myRecs.forEach(r=>{ if(!r._card) r._card=cards.find(c=>c.id===r.card_id)||{} });
 
   var byMember={};
   myRecs.forEach(r=>{ var k=(r._card.group_id||'')+'|'+(r._card.member_id||''); if(!byMember[k]) byMember[k]={gid:r._card.group_id,mid:r._card.member_id,list:[]}; byMember[k].list.push(r) });
@@ -726,7 +748,7 @@ function renderMyByMember(myRecs){
 }
 
 function renderMyByCard(myRecs){
-  myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
+  myRecs.forEach(r=>{ if(!r._card) r._card=cards.find(c=>c.id===r.card_id)||{} });
   var byCard={};
   myRecs.forEach(r=>{ var k=r._card.name||'未知卡'; if(!byCard[k]) byCard[k]={name:k,list:[]}; byCard[k].list.push(r) });
   var sorted=Object.entries(byCard).sort((a,b)=>b[1].list.length-a[1].list.length);
@@ -747,7 +769,7 @@ function renderMyByCard(myRecs){
 }
 
 function renderMyCortisCards(myRecs){
-  myRecs.forEach(r=>{ r._card=cards.find(c=>c.id===r.card_id)||{} });
+  myRecs.forEach(r=>{ if(!r._card) r._card=cards.find(c=>c.id===r.card_id)||{} });
   var sorted=myRecs.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   var html='';
   sorted.forEach(r=>{
@@ -772,10 +794,17 @@ function closeModal(){ document.getElementById('modal').classList.add('hidden') 
 async function confirmDelete(event,type,id){
   event.stopPropagation(); var btn=event.target;
   if(btn.classList.contains('confirming')){
+    var t=btn.getAttribute('data-timeout');
+    if(t){ clearTimeout(parseInt(t,10)); btn.removeAttribute('data-timeout') }
     if(type==='card'){ await supaDelete('cards',{id:id}); await supaDelete('records',{card_id:id}); showToast('🗑️ 卡片已删除') }
     else { await supaDelete('records',{id:id}); showToast('🗑️ 记录已删除') }
+    btn.classList.remove('confirming'); btn.textContent='×';
     await refreshCurrentData();
-  } else { btn.classList.add('confirming'); btn.textContent='确认?'; setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000) }
+  } else {
+    btn.classList.add('confirming'); btn.textContent='确认?';
+    var to=setTimeout(function(){ btn.classList.remove('confirming'); btn.textContent='×' },3000);
+    btn.setAttribute('data-timeout',to);
+  }
 }
 
 // ═══════════════════ 登录 ═══════════════════
@@ -789,8 +818,8 @@ async function doLogin(){
   if(!name){ showToast('请输入昵称'); return }
   if(code!==window._inviteCode){ showToast('❌ 邀请码不对'); return }
   if(users.find(u=>u.name===name)){ showToast('⚠️ 昵称已存在'); return }
-  var id='u'+Date.now();
-  var r=await supaInsert('users',{id:id,name:name,role:'member'});
+  var id=genId('u');
+  var r=await supaInsert('users',{id:id,name:name,role:'member',group_id:getUserGroupId()||'seventeen'});
   if(r.error){ showToast('注册失败: '+r.error.message); return }
   currentUser={id,name,role:'member'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('🎉 欢迎 '+name+'！');
@@ -800,8 +829,8 @@ async function doLogin(){
 async function doFirstLogin(){
   var name=document.getElementById('loginName').value.trim();
   if(!name){ showToast('请输入昵称'); return }
-  var id='u'+Date.now();
-  await supaInsert('users',{id:id,name:name,role:'founder'});
+  var id=genId('u');
+  await supaInsert('users',{id:id,name:name,role:'founder',group_id:'seventeen'});
   currentUser={id,name,role:'founder'}; localStorage.setItem('kcard_user_id',id);
   closeModal(); showToast('👑 '+name+' 成为创始人！');
   await refreshCurrentData();
@@ -831,14 +860,15 @@ async function removeUser(uid){
   showToast('🗑️ 已移除'); closeModal(); await refreshCurrentData();
 }
 function switchUserMenu(){
-  var opts=users.map(u=>`<div class="user-card" style="cursor:pointer" onclick="switchToUser('${u.id}')"><div class="user-avatar">😊</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div></div></div>`).join('');
+  var opts=users.map(u=>`<div class="user-card" style="cursor:pointer" onclick="switchToUser('${u.id}')"><div class="user-avatar">${getEmoji(u.name)}</div><div class="user-info"><div style="font-size:14px;font-weight:600">${u.name} ${u.role==='founder'?'<span class="badge-founder">创始人</span>':''}</div><div style="font-size:11px;color:var(--muted)">${u.group_id||'未分组'}</div></div></div>`).join('');
   document.getElementById('modalBody').innerHTML='<div style="font-weight:600;margin-bottom:8px">点击切换用户</div>'+opts;
 }
 function switchToUser(uid){ currentUser=users.find(u=>u.id===uid)||null; localStorage.setItem('kcard_user_id',uid); closeModal(); showToast('🔄 已切换'); currentTab='my'; refreshCurrentData() }
 function getUserGroupId(){
-  if(!currentUser) return null;
+  if(!currentUser) return 'seventeen';
+  if(currentUser.group_id) return currentUser.group_id;
   if(currentUser.name==='二丁') return 'cortis';
-  return 'seventeen';
+  return (currentUser.role==='founder' && users.length>1) ? null : 'seventeen';
 }
 function isCortisUser(){
   return getUserGroupId()==='cortis';
@@ -846,14 +876,13 @@ function isCortisUser(){
 
 // ═══════════════════ AI 自然语言录入 ═══════════════════
 function openAiImport(){
-  if(!currentUser){ showToast('请先登录'); return }
   var example=isCortisUser()?'赵雨凡 stb专卡 30 未发货':'金珉奎 2026克拉岛zone卡 2026克拉岛 zone卡 28 已到手';
   var fields=isCortisUser()?'成员、卡名、价格、状态':'成员、卡名、系列、品类、价格、状态';
   var html=`<input type="file" id="aiImgInput" accept="image/*" capture="environment" class="hidden" onchange="previewAiImg(event)"><div class="form-group"><label>📸 卡面图片（可选）</label><div class="upload-area" id="aiUploadArea" onclick="document.getElementById('aiImgInput').click()"><div class="upload-placeholder" id="aiUpPlaceholder"><span class="big-icon">📷</span>点击拍照或选图</div><img id="aiUpPreview" class="upload-preview hidden"></div><div class="upload-actions"><button onclick="document.getElementById('aiImgInput').setAttribute('capture','environment');document.getElementById('aiImgInput').click()">📸 拍照</button><button onclick="document.getElementById('aiImgInput').removeAttribute('capture');document.getElementById('aiImgInput').click()">🖼️ 相册</button><button onclick="clearAiPreview()" style="color:var(--danger)">✕</button></div></div><div class="form-group"><label>📝 一句话录入（${fields}）</label><textarea id="aiInput" rows="4" placeholder="例如：${example}"></textarea></div><div style="font-size:11px;color:var(--muted);margin-bottom:10px">支持空格或换行分隔。不确定的字段我会弹出来让你确认。</div><button class="btn-main" onclick="parseAndSaveAiImport()">🚀 解析并录入</button><div style="margin-top:10px"><button class="btn-sm" onclick="closeModal();openMyAddCard()" style="background:#f3f4f6;color:#666">↩️ 手动录入</button></div>`;
   openModal('🤖 AI 录入',html);
   _formImgData='';
 }
-function previewAiImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=function(ev){ _formImgData=ev.target.result; document.getElementById('aiUpPlaceholder').classList.add('hidden'); var p=document.getElementById('aiUpPreview'); p.src=ev.target.result; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
+function previewAiImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=async function(ev){ _formImgData=await compressImage(ev.target.result); document.getElementById('aiUpPlaceholder').classList.add('hidden'); var p=document.getElementById('aiUpPreview'); p.src=_formImgData; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
 function clearAiPreview(){ document.getElementById('aiImgInput').value=''; document.getElementById('aiUpPlaceholder').classList.remove('hidden'); var p=document.getElementById('aiUpPreview'); p.classList.add('hidden'); p.src=''; _formImgData='' }
 
 function parseAiInput(text){
@@ -956,7 +985,7 @@ async function saveAiConfirm(){
 }
 
 async function doAiSave(parsed){
-  var cid='c'+Date.now();
+  var cid=genId('c');
   var gid=getUserGroupId()||'seventeen';
   var memberName=members.find(function(m){return m.id===parsed.member});
   var recStatus=parsed.status;
@@ -1063,13 +1092,13 @@ async function saveMyCard(){
   if(!name||!type){ showToast('请填写卡面信息'); return }
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
-  if(!price){ showToast('请填写价格'); return }
-  var cid='c'+Date.now();
+  if(isNaN(price)){ showToast('请填写价格'); return }
+  var cid=genId('c');
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-    var gid=getUserGroupId()||'seventeen';
+  var gid=getUserGroupId()||'seventeen';
   var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid==='__team__'?null:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:mid==='__team__'?'👥':getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  var r2=await supaInsert('records',{id:genId('r'),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -1081,11 +1110,11 @@ async function saveMyCortisCard(){
   var price=parseFloat(document.getElementById('recPrice').value)||0;
   var status=document.getElementById('recStatus').value;
   if(!name){ showToast('请填写卡名'); return }
-  if(!price){ showToast('请填写价格'); return }
-  var cid='c'+Date.now();
+  if(isNaN(price)){ showToast('请填写价格'); return }
+  var cid=genId('c');
   var r=await supaInsert('cards',{id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
-  var r2=await supaInsert('records',{id:'r'+Date.now(),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
+  var r2=await supaInsert('records',{id:genId('r'),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 已录入卡册');
   await refreshCurrentData();
@@ -1122,7 +1151,7 @@ function updateMemSel(){
   members.filter(m=>m.group_id===gid).forEach(m=>{ s.innerHTML+=`<option value="${m.id}">${m.name}</option>` });
 }
 
-function previewCardImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=function(ev){ _formImgData=ev.target.result; document.getElementById('cardUpPlaceholder').classList.add('hidden'); var p=document.getElementById('cardUpPreview'); p.src=ev.target.result; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
+function previewCardImg(e){ var f=e.target.files[0]; if(!f) return; var reader=new FileReader(); reader.onload=async function(ev){ _formImgData=await compressImage(ev.target.result); document.getElementById('cardUpPlaceholder').classList.add('hidden'); var p=document.getElementById('cardUpPreview'); p.src=_formImgData; p.classList.remove('hidden') }; reader.readAsDataURL(f) }
 function clearCardPreview(){ document.getElementById('cardImgInput').value=''; document.getElementById('cardUpPlaceholder').classList.remove('hidden'); var p=document.getElementById('cardUpPreview'); p.classList.add('hidden'); p.src=''; _formImgData='' }
 
 async function saveCard(){
@@ -1136,9 +1165,7 @@ async function saveCard(){
   if(!name||!gid||!mid||!type){ showToast('请填写必填项'); return }
   if(serSel.value==='__new__'&&!series){ showToast('请输入新系列名称'); return }
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
-  var id='c'+Date.now();
-  // 图片存 base64 在 image_url 里（小图用 <10MB 够用）
-  // 新品类/新系列自动入库（下次显示在选项中）
+  var id=genId('c');
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
   var r=await supaInsert('cards',{id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
@@ -1194,8 +1221,8 @@ async function saveRecord(cardId){
   var status=document.getElementById('recStatus').value;
   var date=document.getElementById('recDate').value;
   var note=document.getElementById('recNote').value.trim();
-  if(!price){ showToast('请填写价格'); return }
-  var r=await supaInsert('records',{id:'r'+Date.now(),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
+  if(isNaN(price)){ showToast('请填写价格'); return }
+  var r=await supaInsert('records',{id:genId('r'),card_id:cardId,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   closeModal(); showToast('✅ 已记入卡册');
   await refreshCurrentData();
@@ -1245,6 +1272,7 @@ function editMyRecord(rid){
 async function saveMyRecord(rid){
   var price=parseFloat(document.getElementById('editRecPrice').value)||0;
   var status=document.getElementById('editRecStatus').value;
+  if(isNaN(price)){ showToast('请填写价格'); return }
   await supaUpdate('records',{id:rid},{price:price,status:status});
   closeModal(); showToast('💾 已保存');
   await refreshCurrentData();

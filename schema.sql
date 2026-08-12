@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('founder','member')),
+  group_id TEXT DEFAULT 'seventeen',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
