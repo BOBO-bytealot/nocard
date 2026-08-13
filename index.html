@@ -636,7 +636,7 @@ function renderAlbumGuideLarge(sname,seriesCards){
     var first=guides[0];
     progText+=' · '+first.name+' · '+first.label;
   } else {
-    progText+=' · 暂无图鉴';
+    progText+=' · 暂无图鉴 · 左滑上传图鉴';
   }
   html+=`<div class="album-guide-progress" id="guideProgress_${sname}">${progText} · 左右滑动切换</div>`;
   html+='</div>';
@@ -647,7 +647,6 @@ function renderAlbumGuideLarge(sname,seriesCards){
 var _guideIdx={};
 function initGuideSwiper(sname){
   var g=_ALBUM_GUIDES[sname]||[];
-  if(!g.length) return;
   _guideIdx[sname]=0;
   var dots=document.getElementById('guideDots_'+sname);
   if(!dots) return;
@@ -670,7 +669,8 @@ function initGuideSwiper(sname){
 function goGuideSlide(sname,dir){
   var g=_ALBUM_GUIDES[sname]||[];
   var idx=(_guideIdx[sname]||0)+dir;
-  if(idx<0||idx>=g.length) return;
+  // g.length 是上传按钮这一张
+  if(idx<0||idx>g.length) return;
   _guideIdx[sname]=idx;
   var track=document.getElementById('guideTrack_'+sname);
   if(track) track.style.transform='translateX(-'+(idx*100)+'%)';
@@ -679,9 +679,9 @@ function goGuideSlide(sname,dir){
   updateGuideNav(sname);
   var prog=document.getElementById('guideProgress_'+sname);
   if(prog){
-    var item=g[idx];
     var seriesCount=(window._currentSeriesCards||[]).length;
-    prog.textContent=seriesCount+'张 · '+item.name+' · '+item.label+' · 左右滑动切换';
+    if(idx===g.length){ prog.textContent=seriesCount+'张 · 上传图鉴 · 左右滑动切换'; }
+    else { var item=g[idx]; prog.textContent=seriesCount+'张 · '+item.name+' · '+item.label+' · 左右滑动切换'; }
   }
 }
 function updateGuideNav(sname){
@@ -690,7 +690,7 @@ function updateGuideNav(sname){
   var prev=document.getElementById('btnPrev_'+sname);
   var next=document.getElementById('btnNext_'+sname);
   if(prev) prev.disabled=idx===0;
-  if(next) next.disabled=idx===g.length-1;
+  if(next) next.disabled=idx===g.length;
 }
 
 function buildCardItem(c, founder, isRecord, recordObj){
