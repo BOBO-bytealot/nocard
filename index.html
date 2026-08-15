@@ -464,7 +464,7 @@ function backToSeries(){ currentSeries=null; render() }
 function renderNavUsers(){
   var html='';
   if(users.length){
-    html=users.map(u=>`<button class="nav-btn${u.id===currentUser?.id?' active':''}" onclick="switchToUser('${u.id}')">${u.name}</button>`).join('');
+    html=users.map(u=>`<button class="nav-btn${u.id===(currentUser&&currentUser.id)?' active':''}" onclick="switchToUser('${u.id}')">${u.name}</button>`).join('');
   }
   document.getElementById('navUsers').innerHTML=html;
 }
@@ -1131,7 +1131,7 @@ async function saveMyCard(){
   var cid=genId('c');
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
   var gid=getUserGroupId()||'seventeen';
-  var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid==='__team__'?null:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:mid==='__team__'?'👥':getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var midMember=members.find(m=>m.id===mid); var r=await supaInsert('cards',{id:cid,group_id:gid,member_id:mid==='__team__'?null:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:mid==='__team__'?'👥':getEmoji(midMember?midMember.name:''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   var r2=await supaInsert('records',{id:genId('r'),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:date,note:note});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
@@ -1147,7 +1147,7 @@ async function saveMyCortisCard(){
   if(!name){ showToast('请填写卡名'); return }
   if(isNaN(price)){ showToast('请填写价格'); return }
   var cid=genId('c');
-  var r=await supaInsert('cards',{id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var midMember=members.find(m=>m.id===mid); var r=await supaInsert('cards',{id:cid,group_id:'cortis',member_id:mid||null,name:name,series:'',card_type:'其他',image_url:_formImgData||null,image_emoji:getEmoji(midMember?midMember.name:''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   var r2=await supaInsert('records',{id:genId('r'),card_id:cid,user_id:currentUser.id,price:price,status:status,buy_date:'',note:''});
   if(r2.error){ showToast('记录失败: '+r2.error.message); return }
@@ -1202,7 +1202,7 @@ async function saveCard(){
   if(typeSel.value==='__new__'&&!type){ showToast('请输入新品类名称'); return }
   var id=genId('c');
   if(typeSel.value==='__new__'&&!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  var r=await supaInsert('cards',{id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(members.find(m=>m.id===mid)?.name||''),created_by:currentUser.id});
+  var midMember=members.find(m=>m.id===mid); var r=await supaInsert('cards',{id:id,group_id:gid,member_id:mid,name:name,series:series,card_type:type,image_url:_formImgData||null,image_emoji:getEmoji(midMember?midMember.name:''),created_by:currentUser.id});
   if(r.error){ showToast('添加失败: '+r.error.message); return }
   _formImgData=''; closeModal(); showToast('✅ 卡片已添加');
   await refreshCurrentData();
