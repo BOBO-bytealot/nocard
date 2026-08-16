@@ -81,8 +81,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .album-banner-item .check{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--purple);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
 .album-guide-swiper{position:relative;width:100%;overflow:hidden;border-radius:var(--r);background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
 .album-guide-track{display:flex;transition:transform .3s ease}
-.album-guide-slide{flex:0 0 100%;width:100%;cursor:pointer}
-.album-guide-slide img{width:100%;height:auto;display:block}
+.album-guide-slide{flex:0 0 100%;width:100%;height:260px;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--card)}
+.album-guide-slide img{width:100%;height:100%;object-fit:contain;display:block}
 .album-guide-dots{display:flex;justify-content:center;gap:6px;padding:10px 0}
 .album-guide-dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:background .2s}
 .album-guide-dot.active{background:var(--purple)}
@@ -628,7 +628,7 @@ function renderAlbumGuideLarge(sname,seriesCards){
     html+=`<div class="album-guide-slide" style="position:relative" onclick="openLightbox('${g.src}','','${g.name}','${sname}')">${delBtn}<img src="${g.src}" alt="${g.name}"></div>`;
   });
   // 滑动最后一张是上传按钮
-  html+=`<div class="album-guide-slide" style="display:flex;align-items:center;justify-content:center;background:var(--card);min-height:200px;cursor:pointer" onclick="document.getElementById('guideUpload_${sname}').click()"><div style="text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">+</div><div style="font-size:13px">上传图鉴</div></div></div>`;
+  html+=`<div class="album-guide-slide" style="background:var(--card);cursor:pointer" onclick="document.getElementById('guideUpload_${sname}').click()"><div style="text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">+</div><div style="font-size:13px">上传图鉴</div></div></div>`;
   html+='</div>';
   html+='<div class="album-guide-dots" id="guideDots_'+sname+'"></div>';
   var progText=seriesCount+'张';
