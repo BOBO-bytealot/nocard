@@ -108,6 +108,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-grid .cg-member{font-size:10px;color:var(--muted);margin-top:2px}
 .stats-bar{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .stat-item{flex:1}
+/* CORTIS 专用顶部栏 */
+.cortis-top{background:var(--card);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cortis-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cortis-row .count{font-size:13px;font-weight:600;color:var(--text)}
+.cortis-row .manage-actions button{padding:5px 12px;font-size:12px}
+.cortis-stats{display:flex;justify-content:space-around;text-align:center;background:var(--tint2,#ede9fe);border-radius:8px;padding:8px 0}
+.cortis-stats .stat-item{flex:1}
+.cortis-stats .stat-num{font-size:16px;font-weight:700;color:var(--purple)}
+.cortis-stats .stat-label{font-size:10px;color:var(--muted);margin-top:2px}
+/* 配对区 */
+.pair-section{margin-bottom:14px}
+.pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.pair-section .pair-hd .pair-title{font-size:14px;font-weight:600}
+.pair-section .pair-hd .pair-add{background:var(--tint2,#ede9fe);color:var(--purple);border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+.pair-card{background:var(--card);border-radius:var(--r);padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:3px solid var(--pl)}
+.pair-card .pair-name{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.pair-card .pair-name .pair-del{background:none;border:none;color:#999;font-size:12px;cursor:pointer;padding:2px 6px}
+.pair-cards{display:flex;gap:8px}
+.pair-cards .pair-slot{flex:1;min-width:0}
+.pair-cards .pair-slot img{width:100%;height:100%;object-fit:cover;border-radius:6px;display:block}
+.pair-cards .pair-slot .pair-empty{width:100%;height:100%;min-height:90px;display:flex;align-items:center;justify-content:center;font-size:24px;background:#f0ebe3;border-radius:6px}
+.pair-cards .pair-slot .pair-thumb{width:100%;aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.pair-cards .pair-slot .pair-thumb img{width:100%;height:100%;object-fit:cover}
+.pair-cards .pair-slot .pair-thumb .emoji{font-size:28px}
+.pair-cards .pair-slot .pair-cap{font-size:11px;color:var(--muted);margin-top:4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 卡片配对角标 */
+.pair-badge{position:absolute;bottom:8px;right:8px;background:var(--pl);color:#fff;font-size:10px;padding:2px 6px;border-radius:8px;z-index:2}
+.pair-btn{position:absolute;top:8px;right:8px;min-width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.05);color:#666;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;padding:0 6px}
 .stat-num{font-size:20px;font-weight:700;color:var(--purple)}
 .stat-label{font-size:11px;color:var(--muted);margin-top:2px}
 .stat-divider{width:1px;background:#eee}
@@ -304,7 +332,7 @@ var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-a
 
 // ═══════════════════ 全局状态 ═══════════════════
 var currentTab='main', currentView='member', currentSeries=null;
-var groups=[], members=[], users=[], cards=[], records=[];
+var groups=[], members=[], users=[], cards=[], records=[], cardPairs=[];
 var currentUser=null;
 var _formImgData='';
 var CACHE_TTL=24*60*60*1000; // 缓存24小时
@@ -420,6 +448,9 @@ async function refreshCurrentData(){
   if(currentUser){ var u=users.find(x=>x.id===currentUser.id); if(!u) currentUser=null; else currentUser=u; localStorage.setItem('kcard_user_id',currentUser.id) }
   var agRes=await supaGet('album_guides');
   mergeAlbumGuides(agRes.data);
+  var uid2=currentUser?currentUser.id:null;
+  var ppRes=uid2?await supaGet('card_pairs',{eq:{owner_id:uid2},order:'created_at.desc'}):{data:[]};
+  cardPairs=ppRes.data||[];
   render();
   if(cards.length) loadCardImages(cards.map(function(c){return c.id}));
 }
@@ -684,6 +715,7 @@ function buildCardItem(c, founder, isRecord, recordObj){
   if(isRecord&&recordObj) html+=`<div class="price-line">¥${recordObj.price} <span class="tag tag-status ${STATUS_CLASS[recordObj.status]} ">${recordObj.status}</span></div>`;
   else html+=`<div class="price-line" style="color:var(--muted);font-weight:400;font-size:12px">＋ 点击记入</div>`;
   html+=`</div>`;
+  if(isRecord&&cardInPair(c.id)) html+=`<span class="pair-badge">🔗</span>`;
   if(founder) html+=`<button class="card-edit" onclick="event.stopPropagation();openEditCard(cards.find(x=>x.id==='${c.id}'))">✎</button>`;
   if(founder||isRecord) html+=`<button class="card-delete" onclick="event.stopPropagation();confirmDelete(event,'${isRecord?'record':'card'}','${isRecord&&recordObj?recordObj.id:c.id}')">×</button>`;
   html+=`</div>`;
@@ -709,14 +741,22 @@ function renderLibrary(){
   var arrived=myRecs.filter(function(r){ return r.status==='已到手' }).length;
   var filterActive=statusFilter?' active':'';
   var filterHtml=STATUSES.map(function(s){ return `<button class="nav-btn${statusFilter===s?filterActive:''}" onclick="statusFilter=statusFilter==='${s}'?'':'${s}';render();" style="color:var(--text);background:${statusFilter===s?'var(--purple)':'#f3f4f6'};opacity:${statusFilter&&statusFilter!==s?'0.4':'1'}">${s}</button>` }).join('');
-  var html=`<div class="manage-bar"><span class="count">💝 我的 ${total}张 · ¥${totalPrice} · 卡库 ${filteredCards.length}张</span><div class="manage-actions"><button class="btn-add" onclick="openAiImport()">🤖 AI 录入</button><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button>${founder?`<button class="btn-add" style="background:#fef3c7;color:#92400e" onclick="openAddCard()">+ 加卡</button>`:''}</div></div>`;
-  html+=`<div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
-  if(!myRecs.length&&!filteredCards.length) return html+'<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p>卡库还是空的</p><p>点上面的按钮录入第一张卡吧</p></div>';
+  var html='';
   if(isCortisUser()){
+    // CORTIS 专用：两行顶部栏 + 胶囊筛选，避免换行
     var notIn=total-arrived;
-    html+=`<div class="stats-bar"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${notIn}</div><div class="stat-label">未在手</div></div></div>`;
+    html+=`<div class="cortis-top"><div class="cortis-row"><span class="count">💝 我的 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button></div></div><div class="cortis-stats"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div><div class="stat-item"><div class="stat-num">${notIn}</div><div class="stat-label">未在手</div></div></div></div>`;
+    html+=`<div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕</button></div>`;
   } else {
-    html+=`<div class="stats-bar"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${inTr}</div><div class="stat-label">在途</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div></div>`;
+    var html2=`<div class="manage-bar"><span class="count">💝 我的 ${total}张 · ¥${totalPrice} · 卡库 ${filteredCards.length}张</span><div class="manage-actions"><button class="btn-add" onclick="openAiImport()">🤖 AI 录入</button><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button>${founder?`<button class="btn-add" style="background:#fef3c7;color:#92400e" onclick="openAddCard()">+ 加卡</button>`:''}</div></div>`;
+    html2+=`<div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
+    html2+=`<div class="stats-bar"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${inTr}</div><div class="stat-label">在途</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div></div>`;
+    html+=html2;
+  }
+  if(!myRecs.length&&!filteredCards.length) return html+'<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p>卡库还是空的</p><p>点上面的按钮录入第一张卡吧</p></div>';
+  // 配对区：我的配对展示
+  if(cardPairs.length){
+    html+=renderPairSection();
   }
   html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
   if(!filteredCards.length){ html+='<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">🔍</div><p>没有符合筛选的卡</p></div>'; return html }
@@ -726,6 +766,64 @@ function renderLibrary(){
     html+=`<div style="text-align:center;padding:16px"><button class="btn-add" onclick="loadMoreCards()">${ _cardsLoadingMore?'加载中...':'加载更多卡片'}</button></div>`;
   }
   return html;
+}
+
+// ═══════════════════ 配对功能 ═══════════════════
+function pairCardIds(p){
+  return [p.card_a, p.card_b];
+}
+function cardInPair(cardId){
+  return cardPairs.some(function(p){ return p.card_a===cardId||p.card_b===cardId });
+}
+function renderPairSection(){
+  if(!cardPairs.length) return '';
+  var html='<div class="pair-section"><div class="pair-hd"><span class="pair-title">🔗 配对</span><button class="pair-add" onclick="openAddPair()">+ 添加配对</button></div>';
+  cardPairs.forEach(function(p){
+    var ca=cards.find(function(c){return c.id===p.card_a});
+    var cb=cards.find(function(c){return c.id===p.card_b});
+    var mna='', mnb='';
+    if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
+    if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
+    html+=`<div class="pair-card"><div class="pair-name"><span>${p.label||'配对'}</span><button class="pair-del" onclick="confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
+    html+=pairSlotHtml(ca,mna);
+    html+=`<div class="pair-slot" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center"><span style="font-size:20px;color:var(--pl)">💞</span></div>`;
+    html+=pairSlotHtml(cb,mnb);
+    html+='</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+function pairSlotHtml(c,mn){
+  if(!c) return '<div class="pair-slot"><div class="pair-thumb"><span style="font-size:24px">❓</span></div><div class="pair-cap">已删除</div></div>';
+  var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
+  return `<div class="pair-slot"><div class="pair-thumb" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-cap">${mn?mn+' · ':''}${c.name||''}</div></div>`;
+}
+function openAddPair(){
+  var myCardIds={};
+  records.forEach(function(r){ if(r.user_id===currentUser.id) myCardIds[r.card_id]=true });
+  var pool=cards.filter(function(c){ return myCardIds[c.id] && !cardInPair(c.id) });
+  if(pool.length<2){ showToast('至少需要 2 张未配对的卡'); return }  var opts=pool.map(function(c){
+    var m=members.find(function(x){return x.id===c.member_id}); var mn=m?m.name:'';
+    return `<option value="${c.id}">${mn?mn+' · ':''}${c.name}</option>`;
+  }).join('');
+  var html=`<div class="form-group"><label>配对名</label><input type="text" id="pairLabel" placeholder="如：小卡一对" value="配对"></div><div class="form-group"><label>第一张卡</label><select id="pairA">${opts}</select></div><div class="form-group"><label>第二张卡</label><select id="pairB">${opts}</select></div><button class="btn-main" onclick="savePair()">✅ 保存配对</button>`;
+  openModal('🔗 添加配对',html);
+}
+async function savePair(){
+  var a=document.getElementById('pairA').value;
+  var b=document.getElementById('pairB').value;
+  if(a===b){ showToast('两张卡不能相同'); return }
+  var label=document.getElementById('pairLabel').value.trim()||'配对';
+  var r=await supaInsert('card_pairs',{owner_id:currentUser.id,card_a:a,card_b:b,label:label});
+  if(r.error){ showToast('保存失败: '+r.error.message); return }
+  closeModal(); showToast('✅ 配对成功');
+  await refreshCurrentData();
+}
+async function confirmDeletePair(pairId){
+  var r=await supaDelete('card_pairs',{id:pairId});
+  if(r.error){ showToast('删除失败: '+r.error.message); return }
+  showToast('🗑️ 已删除配对');
+  await refreshCurrentData();
 }
 
 // ═══════════════════ 交互帮助 ═══════════════════
