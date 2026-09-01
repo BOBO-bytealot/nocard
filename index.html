@@ -117,6 +117,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .cortis-stats .stat-item{flex:1}
 .cortis-stats .stat-num{font-size:16px;font-weight:700;color:var(--purple)}
 .cortis-stats .stat-label{font-size:10px;color:var(--muted);margin-top:2px}
+/* 配对创建器 */
+.pair-composer{background:var(--card);border-radius:var(--r);padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px dashed var(--purple)}
+.pair-composer-cards{display:flex;gap:10px;align-items:center}
+.pair-composer-cards .pair-slot{flex:1;min-width:0}
+.pair-heart{font-size:22px;flex-shrink:0}
+.pick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:55vh;overflow-y:auto}
+.pick-item{border:1px solid var(--border);border-radius:8px;padding:4px;cursor:pointer;text-align:center}
+.pick-item .pick-thumb{aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.pick-item .pick-thumb img{width:100%;height:100%;object-fit:cover}
+.pick-item .pick-thumb .emoji{font-size:26px}
+.pick-item .pick-name{font-size:10px;color:var(--text);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 配对区 */
 .pair-section{margin-bottom:14px}
 .pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -332,6 +343,7 @@ var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-a
 // ═══════════════════ 全局状态 ═══════════════════
 var currentTab='main', currentView='member', currentSeries=null;
 var groups=[], members=[], users=[], cards=[], records=[], cardPairs=[];
+var pairDraft={label:'',a:null,b:null};
 var currentUser=null;
 var _formImgData='';
 var CACHE_TTL=24*60*60*1000; // 缓存24小时
@@ -782,25 +794,55 @@ function pairSlotHtml(c,mn){
   var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
   return `<div class="pair-slot"><div class="pair-thumb" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-cap">${mn?mn+' · ':''}${c.name||''}</div></div>`;
 }
-function openAddPair(){
+function myOwnedCards(){
   var myCardIds={};
   records.forEach(function(r){ if(r.user_id===currentUser.id) myCardIds[r.card_id]=true });
-  var pool=cards.filter(function(c){ return myCardIds[c.id] && !cardInPair(c.id) });
-  if(pool.length<2){ showToast('至少需要 2 张未配对的卡'); return }  var opts=pool.map(function(c){
+  return cards.filter(function(c){ return myCardIds[c.id] });
+}
+function pairSlotHtml(c,mn){
+  if(!c) return '<div class="pair-slot"><div class="pair-thumb"><span style="font-size:24px">❓</span></div><div class="pair-cap">已删除</div></div>';
+  var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
+  return `<div class="pair-slot"><div class="pair-thumb" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-cap">${mn?mn+' · ':''}${c.name||''}</div></div>`;
+}
+function pairComposer(){
+  var pool=myOwnedCards();
+  var emptySlot=function(side){
+    return `<div class="pair-slot" onclick="openPairPicker('${side}')"><div class="pair-thumb" style="cursor:pointer"><span style="font-size:34px;color:var(--purple)">＋</span></div><div class="pair-cap" style="color:var(--purple)">选卡</div></div>`;
+  };
+  var a=pairDraft.a?pairSlotHtml(pairDraft.a,(function(){var m=members.find(function(x){return x.id===pairDraft.a.member_id});return m?m.name:''})()):emptySlot('a');
+  var b=pairDraft.b?pairSlotHtml(pairDraft.b,(function(){var m=members.find(function(x){return x.id===pairDraft.b.member_id});return m?m.name:''})()):emptySlot('b');
+  var canSave=pairDraft.a&&pairDraft.b;
+  var html=`<div class="pair-composer"><div class="form-group" style="margin-bottom:8px"><input type="text" id="pairDraftLabel" placeholder="给这对小卡起个名字…" value="${pairDraft.label||''}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box"></div><div class="pair-composer-cards">${a}<div class="pair-heart">💞</div>${b}</div><button class="btn-main" style="width:100%;margin-top:10px" onclick="savePair()" ${canSave?'':'disabled style="opacity:.5"'}>确定收录</button></div>`;
+  return html;
+}
+function openPairPicker(side){
+  var pool=myOwnedCards();
+  if(!pool.length){ showToast('卡册里还没有卡，先去录卡吧'); return }
+  var cur=pairDraft[side];
+  var items=pool.map(function(c){
     var m=members.find(function(x){return x.id===c.member_id}); var mn=m?m.name:'';
-    return `<option value="${c.id}">${mn?mn+' · ':''}${c.name}</option>`;
+    var active=cur&&cur.id===c.id?' style="border:2px solid var(--purple)"':'';
+    var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
+    return `<div class="pick-item"${active} onclick="pickPairCard('${side}','${c.id}')"><div class="pick-thumb">${img}</div><div class="pick-name">${mn?mn+' · ':''}${c.name||''}</div></div>`;
   }).join('');
-  var html=`<div class="form-group"><label>配对名</label><input type="text" id="pairLabel" placeholder="如：小卡一对" value="配对"></div><div class="form-group"><label>第一张卡</label><select id="pairA">${opts}</select></div><div class="form-group"><label>第二张卡</label><select id="pairB">${opts}</select></div><button class="btn-main" onclick="savePair()">✅ 保存配对</button>`;
-  openModal('🔗 添加配对',html);
+  openModal('选择小卡',`<div class="pick-grid">${items}</div>`);
+}
+function pickPairCard(side,cid){
+  var c=cards.find(function(x){return x.id===cid});
+  if(!c) return;
+  if(side==='a'&&pairDraft.b&&pairDraft.b.id===cid){ showToast('两张卡不能相同'); return }
+  if(side==='b'&&pairDraft.a&&pairDraft.a.id===cid){ showToast('两张卡不能相同'); return }
+  pairDraft[side]=c;
+  closeModal();
+  render();
 }
 async function savePair(){
-  var a=document.getElementById('pairA').value;
-  var b=document.getElementById('pairB').value;
-  if(a===b){ showToast('两张卡不能相同'); return }
-  var label=document.getElementById('pairLabel').value.trim()||'配对';
-  var r=await supaInsert('card_pairs',{owner_id:currentUser.id,card_a:a,card_b:b,label:label});
+  if(!pairDraft.a||!pairDraft.b){ showToast('先把两张卡都选上'); return }
+  var label=document.getElementById('pairDraftLabel').value.trim()||'配对';
+  var r=await supaInsert('card_pairs',{owner_id:currentUser.id,card_a:pairDraft.a.id,card_b:pairDraft.b.id,label:label});
   if(r.error){ showToast('保存失败: '+r.error.message); return }
-  closeModal(); showToast('✅ 配对成功');
+  pairDraft={label:'',a:null,b:null};
+  showToast('✅ 收录到配对啦');
   await refreshCurrentData();
 }
 async function confirmDeletePair(pairId){
@@ -811,8 +853,9 @@ async function confirmDeletePair(pairId){
 }
 function renderPairsView(){
   var myPairs=cardPairs.filter(function(p){ return p.owner_id===currentUser.id });
-  if(!myPairs.length) return '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">💑</div><p>还没有配对</p><p style="font-size:13px;margin-top:8px">点上方按钮创建第一对</p></div>';
-  var html='<div class="pair-section" style="margin-bottom:0"><div class="pair-hd"><span class="pair-title">🔗 我的配对 <span style="font-size:12px;color:var(--muted);font-weight:400">'+myPairs.length+'对</span></span><button class="pair-add" onclick="openAddPair()">+ 添加配对</button></div>';
+  var html='<div class="pair-section" style="margin-bottom:14px"><div class="pair-hd"><span class="pair-title">✨ 新建配对</span></div>'+pairComposer()+'</div>';
+  if(!myPairs.length) return html+'<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:44px">💑</div><p>还没有配对，上面创建第一对吧</p></div>';
+  html+='<div class="pair-section"><div class="pair-hd"><span class="pair-title">🔗 我的配对 <span style="font-size:12px;color:var(--muted);font-weight:400">'+myPairs.length+'对</span></span></div>';
   myPairs.forEach(function(p){
     var ca=cards.find(function(c){return c.id===p.card_a});
     var cb=cards.find(function(c){return c.id===p.card_b});
