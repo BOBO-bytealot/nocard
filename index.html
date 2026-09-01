@@ -514,15 +514,19 @@ function renderByMember(cardList,founder){
   var sorted=Object.values(byMember).sort((a,b)=>{
     var ga=groups.findIndex(g=>g.id===a.gid), gb=groups.findIndex(g=>g.id===b.gid);
     if(ga!==gb) return ga-gb;
+    // 团卡(member_id为null)排最后
+    if(a.mid===null&&b.mid!==null) return 1;
+    if(a.mid!==null&&b.mid===null) return -1;
+    if(a.mid===null&&b.mid===null) return 0;
     var ma=members.findIndex(m=>m.id===a.mid), mb=members.findIndex(m=>m.id===b.mid);
     return ma-mb;
   });
   var jumpHtml='<div class="jump-nav">';
-  sorted.forEach(g=>{ var m=members.find(x=>x.id===g.mid); var mn=m?m.name:g.mid; jumpHtml+=`<button class="jump-chip" onclick="scrollTo('mem_${g.gid}_${g.mid}')">${getEmoji(mn)} ${mn}<span class="badge">${g.list.length}</span></button>` });
+  sorted.forEach(g=>{ var m=members.find(x=>x.id===g.mid); var mn=g.mid===null?'团卡':(m?m.name:g.mid); jumpHtml+=`<button class="jump-chip" onclick="scrollTo('mem_${g.gid}_${g.mid}')">${g.mid===null?'👥':getEmoji(mn)} ${mn}<span class="badge">${g.list.length}</span></button>` });
   jumpHtml+='</div>';
   var html=jumpHtml;
   sorted.forEach(g=>{
-    var m=members.find(x=>x.id===g.mid); var mn=m?m.name:g.mid;
+    var m=members.find(x=>x.id===g.mid); var mn=g.mid===null?'团卡':(m?m.name:g.mid);
     var gname=groups.find(x=>x.id===g.gid); var gn=gname?gname.name:g.gid;
     var owned=g.list.filter(function(c){ return myRecFor(c.id) }).length;
     html+=`<div class="group-hd" onclick="toggleGroup(this,'cards_${g.gid}_${g.mid}')" id="mem_${g.gid}_${g.mid}"><div class="gi"><div class="gn">${getEmoji(mn)} ${mn} · ${gn}</div><div class="gm">${g.list.length}张卡片${owned?` · 我的${owned}张`:''}</div></div><div class="arrow">▼</div></div><div class="group-cards" id="cards_${g.gid}_${g.mid}">`;
@@ -708,7 +712,7 @@ function updateGuideNav(sname){
 }
 
 function buildCardItem(c, founder, isRecord, recordObj){
-  var m=members.find(x=>x.id===c.member_id); var mn=m?m.name:''; var en=getEmoji(mn);
+  var m=members.find(x=>x.id===c.member_id); var mn=c.member_id===null?'团卡':(m?m.name:''); var en=getEmoji(mn);
   var cidForEdit=c.cardId||c.id||c.recordId||'';
   var ridAttr=recordObj?' data-record-id="'+recordObj.id+'"':'';
   var html=`<div class="card-item" data-card-id="${cidForEdit}"${ridAttr}><div class="card-thumb" onclick="event.stopPropagation();openLightbox('${c.image_url||''}','${mn}','${c.name}','${c.series||''}')">${c.image_url?`<img src="${c.image_url}" alt="">`:`<span class="emoji">${en}</span>`}</div><div class="card-body"><h4>${c.name}</h4><div class="meta">${c.series?`<span class="tag tag-series">${c.series}</span>`:''}<span class="tag tag-type">${c.card_type||'其他'}</span><span class="tag tag-member">${mn}</span></div>`;
