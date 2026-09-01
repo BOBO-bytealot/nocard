@@ -804,15 +804,15 @@ function cardInPair(cardId){
   return cardPairs.some(function(p){ return p.card_a===cardId||p.card_b===cardId });
 }
 function myOwnedCards(){
-  var myCardIds={};
-  records.forEach(function(r){ if(r.user_id===currentUser.id) myCardIds[r.card_id]=true });
-  return cards.filter(function(c){ return myCardIds[c.id] });
+  var gid=getUserGroupId();
+  return cards.filter(function(c){ return !gid || c.group_id===gid });
 }
-function pairSlotFrame(c,mn,side){
+function pairSlotFrame(c,mn,side,viewOnly){
   var name=mn?(mn+(c.name?' · '+c.name:'')):(c.name||'');
   if(!c) return `<div class="pair-slot-frame"><div class="pair-slot-empty" onclick="openPairPicker('${side}')"><span class="plus">＋</span><span class="hint">选卡</span></div></div>`;
   var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-  return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}<button class="swap" onclick="event.stopPropagation();openPairPicker('${side}')">⇄</button></div><div class="pair-slot-name">${name}</div></div>`;
+  if(viewOnly) return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-slot-name">${name}</div></div>`;
+  return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openPairPicker('${side}')">${img}</div><div class="pair-slot-name">${name}</div></div>`;
 }
 function pairComposer(){
   var pool=myOwnedCards();
@@ -824,7 +824,7 @@ function pairComposer(){
 }
 function openPairPicker(side){
   var pool=myOwnedCards();
-  if(!pool.length){ showToast('卡册里还没有卡，先去录卡吧'); return }
+  if(!pool.length){ showToast('卡库还是空的，先录点卡吧'); return }
   var cur=pairDraft[side];
   var items=pool.map(function(c){
     var m=members.find(function(x){return x.id===c.member_id}); var mn=m?m.name:'';
@@ -871,9 +871,9 @@ function renderPairsView(){
     if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
     if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
     html+=`<div class="pair-card"><div class="pair-name"><span>${p.label||'配对'}</span><button class="pair-del" onclick="confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
-    html+=pairSlotFrame(ca,mna,'a');
+    html+=pairSlotFrame(ca,mna,'a',true);
     html+=`<div class="pair-heart">💞</div>`;
-    html+=pairSlotFrame(cb,mnb,'b');
+    html+=pairSlotFrame(cb,mnb,'b',true);
     html+='</div></div>';
   });
   html+='</div>';
