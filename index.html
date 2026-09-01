@@ -148,10 +148,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .pair-section .pair-hd .pair-title{font-size:14px;font-weight:600}
 .pair-section .pair-hd .pair-add{background:var(--tint2,#ede9fe);color:var(--purple);border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
 .pair-card{background:var(--card);border-radius:var(--r);padding:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.pair-card .pair-name{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.pair-card .pair-name{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer}
 .pair-card .pair-name .label{color:var(--pl);border-bottom:1px dashed var(--pl)}
-.pair-card .pair-name .edit-hint{font-size:10px;color:var(--muted);font-weight:400;margin-left:6px}
-.pair-card .pair-name .pair-del{background:none;border:none;color:#999;font-size:12px;cursor:pointer;padding:2px 6px}
+.pair-card .pair-name .pair-del{position:absolute;right:0;background:none;border:none;color:#999;font-size:12px;cursor:pointer;padding:2px 6px}
 .pair-cards{display:flex;gap:10px;align-items:center;justify-content:center;padding:14px 10px;border-radius:14px;background:linear-gradient(135deg,#fff0f5,#ffe4ec);border:2px solid #ffb6d9;position:relative}
 .pair-cards .bubble{position:absolute;font-size:15px;pointer-events:none;animation:floatHeart 2.4s ease-in-out infinite}
 .pair-cards .bubble.b1{top:-8px;left:12%}
@@ -892,7 +891,7 @@ function renderPairsView(){
     var mna='', mnb='';
     if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
     if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
-    html+=`<div class="pair-card"><div class="pair-name" onclick="renamePair('${p.id}')"><span class="label">${p.label||'配对'}</span><span class="edit-hint">✏️ 点我改名</span><button class="pair-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
+    html+=`<div class="pair-card"><div class="pair-name" onclick="renamePair('${p.id}')"><span class="label">${p.label||'配对'}</span><button class="pair-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
     html+='<span class="bubble b1">💗</span><span class="bubble b2">💕</span><span class="bubble b3">💖</span><span class="bubble b4">💘</span><span class="bubble b5">💞</span><span class="bubble b6">💝</span>';
     html+=pairSlotFrame(ca,mna,'a',true);
     html+=`<div class="pair-heart">💞</div>`;
