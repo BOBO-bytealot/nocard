@@ -134,23 +134,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .pair-heart{font-size:24px;flex-shrink:0}
 .pair-composer .btn-main{margin-top:12px}
 /* 选卡网格 */
-.pick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-height:58vh;overflow-y:auto;padding:2px}
-.pick-item{border:1px solid var(--border);border-radius:12px;padding:6px;cursor:pointer;text-align:center;background:#fff}
-.pick-item.active{border:2px solid var(--purple);padding:5px}
-.pick-item .pick-thumb{aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.pick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:58vh;overflow-y:auto;padding:2px}
+.pick-item{border:1px solid var(--border);border-radius:10px;padding:5px;cursor:pointer;text-align:center;background:#fff}
+.pick-item.active{border:2px solid var(--purple);padding:4px}
+.pick-item .pick-thumb{aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:7px;display:flex;align-items:center;justify-content:center}
 .pick-item .pick-thumb img{width:100%;height:100%;object-fit:cover}
-.pick-item .pick-thumb .emoji{font-size:34px}
-.pick-item .pick-name{font-size:12px;color:var(--text);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
-.pick-item .pick-sub{font-size:10px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+.pick-item .pick-thumb .emoji{font-size:24px}
+.pick-item .pick-name{font-size:11px;color:var(--text);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+.pick-item .pick-sub{font-size:9px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
 /* 配对区 */
 .pair-section{margin-bottom:14px}
 .pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .pair-section .pair-hd .pair-title{font-size:14px;font-weight:600}
 .pair-section .pair-hd .pair-add{background:var(--tint2,#ede9fe);color:var(--purple);border:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
-.pair-card{background:var(--card);border-radius:var(--r);padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:3px solid var(--pl)}
-.pair-card .pair-name{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.pair-card{background:var(--card);border-radius:var(--r);padding:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.pair-card .pair-name{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.pair-card .pair-name .label{color:var(--pl);border-bottom:1px dashed var(--pl)}
+.pair-card .pair-name .edit-hint{font-size:10px;color:var(--muted);font-weight:400;margin-left:6px}
 .pair-card .pair-name .pair-del{background:none;border:none;color:#999;font-size:12px;cursor:pointer;padding:2px 6px}
-.pair-cards{display:flex;gap:12px;align-items:center;justify-content:center}
+.pair-cards{display:flex;gap:10px;align-items:center;justify-content:center;padding:14px 10px;border-radius:14px;background:linear-gradient(135deg,#fff0f5,#ffe4ec);border:2px solid #ffb6d9;position:relative}
+.pair-cards .bubble{position:absolute;font-size:15px;pointer-events:none;animation:floatHeart 2.4s ease-in-out infinite}
+.pair-cards .bubble.b1{top:-8px;left:12%}
+.pair-cards .bubble.b2{top:-11px;right:14%;animation-delay:.5s}
+.pair-cards .bubble.b3{bottom:-8px;left:22%;animation-delay:1s}
+.pair-cards .bubble.b4{bottom:-11px;right:20%;animation-delay:1.5s}
+.pair-cards .bubble.b5{top:50%;left:-9px;animation-delay:.8s}
+.pair-cards .bubble.b6{top:44%;right:-9px;animation-delay:1.8s}
+@keyframes floatHeart{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.12)}}
 .pair-cards .pair-slot{flex:1;min-width:0}
 .pair-cards .pair-slot img{width:100%;height:100%;object-fit:cover;border-radius:6px;display:block}
 .pair-cards .pair-slot .pair-empty{width:100%;height:100%;min-height:90px;display:flex;align-items:center;justify-content:center;font-size:24px;background:#f0ebe3;border-radius:6px}
@@ -811,7 +821,7 @@ function pairSlotFrame(c,mn,side,viewOnly){
   var name=mn?(mn+(c.name?' · '+c.name:'')):(c.name||'');
   if(!c) return `<div class="pair-slot-frame"><div class="pair-slot-empty" onclick="openPairPicker('${side}')"><span class="plus">＋</span><span class="hint">选卡</span></div></div>`;
   var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-  if(viewOnly) return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-slot-name">${name}</div></div>`;
+  if(viewOnly) return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div></div>`;
   return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openPairPicker('${side}')">${img}</div><div class="pair-slot-name">${name}</div></div>`;
 }
 function pairComposer(){
@@ -859,6 +869,18 @@ async function confirmDeletePair(pairId){
   showToast('🗑️ 已删除配对');
   await refreshCurrentData();
 }
+async function renamePair(pairId){
+  var p=cardPairs.find(function(x){return x.id===pairId});
+  if(!p) return;
+  var name=prompt('给这对小卡改个名字：',p.label||'');
+  if(name===null) return;
+  name=name.trim();
+  if(!name){ showToast('名字不能为空'); return }
+  var r=await supaUpdate('card_pairs',{id:pairId},{label:name});
+  if(r.error){ showToast('改名失败: '+r.error.message); return }
+  showToast('✏️ 名字改好了');
+  await refreshCurrentData();
+}
 function renderPairsView(){
   var myPairs=cardPairs.filter(function(p){ return p.owner_id===currentUser.id });
   var html='<div class="pair-section" style="margin-bottom:14px"><div class="pair-hd"><span class="pair-title">✨ 新建配对</span></div>'+pairComposer()+'</div>';
@@ -870,7 +892,8 @@ function renderPairsView(){
     var mna='', mnb='';
     if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
     if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
-    html+=`<div class="pair-card"><div class="pair-name"><span>${p.label||'配对'}</span><button class="pair-del" onclick="confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
+    html+=`<div class="pair-card"><div class="pair-name" onclick="renamePair('${p.id}')"><span class="label">${p.label||'配对'}</span><span class="edit-hint">✏️ 点我改名</span><button class="pair-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
+    html+='<span class="bubble b1">💗</span><span class="bubble b2">💕</span><span class="bubble b3">💖</span><span class="bubble b4">💘</span><span class="bubble b5">💞</span><span class="bubble b6">💝</span>';
     html+=pairSlotFrame(ca,mna,'a',true);
     html+=`<div class="pair-heart">💞</div>`;
     html+=pairSlotFrame(cb,mnb,'b',true);
