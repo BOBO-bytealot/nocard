@@ -118,16 +118,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .cortis-stats .stat-num{font-size:16px;font-weight:700;color:var(--purple)}
 .cortis-stats .stat-label{font-size:10px;color:var(--muted);margin-top:2px}
 /* 配对创建器 */
-.pair-composer{background:var(--card);border-radius:var(--r);padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px dashed var(--purple)}
-.pair-composer-cards{display:flex;gap:10px;align-items:center}
-.pair-composer-cards .pair-slot{flex:1;min-width:0}
-.pair-heart{font-size:22px;flex-shrink:0}
-.pick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:55vh;overflow-y:auto}
-.pick-item{border:1px solid var(--border);border-radius:8px;padding:4px;cursor:pointer;text-align:center}
-.pick-item .pick-thumb{aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.pair-composer{background:var(--card);border-radius:var(--r);padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.pair-composer-label{font-size:13px;font-weight:600;margin-bottom:8px}
+.pair-composer input#pairDraftLabel{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;box-sizing:border-box;margin-bottom:12px;background:#fff}
+.pair-composer-cards{display:flex;gap:12px;align-items:center;justify-content:center}
+.pair-slot-frame{flex:1;min-width:0;max-width:150px}
+.pair-slot-empty{aspect-ratio:3/4;border:2px dashed var(--purple);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:var(--tint2,#f3f0ff);gap:4px}
+.pair-slot-empty .plus{font-size:36px;color:var(--purple);line-height:1}
+.pair-slot-empty .hint{font-size:12px;color:var(--purple)}
+.pair-slot-filled{aspect-ratio:3/4;border:2px solid var(--purple);border-radius:12px;overflow:hidden;position:relative;cursor:pointer;background:#f0ebe3}
+.pair-slot-filled img{width:100%;height:100%;object-fit:cover;display:block}
+.pair-slot-filled .emoji{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px}
+.pair-slot-filled .swap{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:11px;line-height:1;cursor:pointer;z-index:2;display:flex;align-items:center;justify-content:center}
+.pair-slot-name{font-size:12px;color:var(--text);margin-top:5px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.pair-heart{font-size:24px;flex-shrink:0}
+.pair-composer .btn-main{margin-top:12px}
+/* 选卡网格 */
+.pick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-height:58vh;overflow-y:auto;padding:2px}
+.pick-item{border:1px solid var(--border);border-radius:12px;padding:6px;cursor:pointer;text-align:center;background:#fff}
+.pick-item.active{border:2px solid var(--purple);padding:5px}
+.pick-item .pick-thumb{aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:8px;display:flex;align-items:center;justify-content:center}
 .pick-item .pick-thumb img{width:100%;height:100%;object-fit:cover}
-.pick-item .pick-thumb .emoji{font-size:26px}
-.pick-item .pick-name{font-size:10px;color:var(--text);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick-item .pick-thumb .emoji{font-size:34px}
+.pick-item .pick-name{font-size:12px;color:var(--text);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.pick-item .pick-sub{font-size:10px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
 /* 配对区 */
 .pair-section{margin-bottom:14px}
 .pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -136,7 +150,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .pair-card{background:var(--card);border-radius:var(--r);padding:10px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:3px solid var(--pl)}
 .pair-card .pair-name{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
 .pair-card .pair-name .pair-del{background:none;border:none;color:#999;font-size:12px;cursor:pointer;padding:2px 6px}
-.pair-cards{display:flex;gap:8px}
+.pair-cards{display:flex;gap:12px;align-items:center;justify-content:center}
 .pair-cards .pair-slot{flex:1;min-width:0}
 .pair-cards .pair-slot img{width:100%;height:100%;object-fit:cover;border-radius:6px;display:block}
 .pair-cards .pair-slot .pair-empty{width:100%;height:100%;min-height:90px;display:flex;align-items:center;justify-content:center;font-size:24px;background:#f0ebe3;border-radius:6px}
@@ -789,30 +803,23 @@ function pairCardIds(p){
 function cardInPair(cardId){
   return cardPairs.some(function(p){ return p.card_a===cardId||p.card_b===cardId });
 }
-function pairSlotHtml(c,mn){
-  if(!c) return '<div class="pair-slot"><div class="pair-thumb"><span style="font-size:24px">❓</span></div><div class="pair-cap">已删除</div></div>';
-  var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-  return `<div class="pair-slot"><div class="pair-thumb" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-cap">${mn?mn+' · ':''}${c.name||''}</div></div>`;
-}
 function myOwnedCards(){
   var myCardIds={};
   records.forEach(function(r){ if(r.user_id===currentUser.id) myCardIds[r.card_id]=true });
   return cards.filter(function(c){ return myCardIds[c.id] });
 }
-function pairSlotHtml(c,mn){
-  if(!c) return '<div class="pair-slot"><div class="pair-thumb"><span style="font-size:24px">❓</span></div><div class="pair-cap">已删除</div></div>';
+function pairSlotFrame(c,mn,side){
+  var name=mn?(mn+(c.name?' · '+c.name:'')):(c.name||'');
+  if(!c) return `<div class="pair-slot-frame"><div class="pair-slot-empty" onclick="openPairPicker('${side}')"><span class="plus">＋</span><span class="hint">选卡</span></div></div>`;
   var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-  return `<div class="pair-slot"><div class="pair-thumb" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}</div><div class="pair-cap">${mn?mn+' · ':''}${c.name||''}</div></div>`;
+  return `<div class="pair-slot-frame"><div class="pair-slot-filled" onclick="openLightbox('${c.image_url||''}','${mn}','${c.name||''}','${c.series||''}')">${img}<button class="swap" onclick="event.stopPropagation();openPairPicker('${side}')">⇄</button></div><div class="pair-slot-name">${name}</div></div>`;
 }
 function pairComposer(){
   var pool=myOwnedCards();
-  var emptySlot=function(side){
-    return `<div class="pair-slot" onclick="openPairPicker('${side}')"><div class="pair-thumb" style="cursor:pointer"><span style="font-size:34px;color:var(--purple)">＋</span></div><div class="pair-cap" style="color:var(--purple)">选卡</div></div>`;
-  };
-  var a=pairDraft.a?pairSlotHtml(pairDraft.a,(function(){var m=members.find(function(x){return x.id===pairDraft.a.member_id});return m?m.name:''})()):emptySlot('a');
-  var b=pairDraft.b?pairSlotHtml(pairDraft.b,(function(){var m=members.find(function(x){return x.id===pairDraft.b.member_id});return m?m.name:''})()):emptySlot('b');
+  var slotA=pairDraft.a?pairSlotFrame(pairDraft.a,(function(){var m=members.find(function(x){return x.id===pairDraft.a.member_id});return m?m.name:''})(),'a'):`<div class="pair-slot-frame"><div class="pair-slot-empty" onclick="openPairPicker('a')"><span class="plus">＋</span><span class="hint">选卡</span></div></div>`;
+  var slotB=pairDraft.b?pairSlotFrame(pairDraft.b,(function(){var m=members.find(function(x){return x.id===pairDraft.b.member_id});return m?m.name:''})(),'b'):`<div class="pair-slot-frame"><div class="pair-slot-empty" onclick="openPairPicker('b')"><span class="plus">＋</span><span class="hint">选卡</span></div></div>`;
   var canSave=pairDraft.a&&pairDraft.b;
-  var html=`<div class="pair-composer"><div class="form-group" style="margin-bottom:8px"><input type="text" id="pairDraftLabel" placeholder="给这对小卡起个名字…" value="${pairDraft.label||''}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box"></div><div class="pair-composer-cards">${a}<div class="pair-heart">💞</div>${b}</div><button class="btn-main" style="width:100%;margin-top:10px" onclick="savePair()" ${canSave?'':'disabled style="opacity:.5"'}>确定收录</button></div>`;
+  var html=`<div class="pair-composer"><div class="pair-composer-label">✨ 新建配对</div><input type="text" id="pairDraftLabel" placeholder="给这对小卡起个名字…" value="${pairDraft.label||''}"><div class="pair-composer-cards">${slotA}<div class="pair-heart">💞</div>${slotB}</div><button class="btn-main" style="width:100%" onclick="savePair()" ${canSave?'':'disabled style="opacity:.45"'}>确定收录</button></div>`;
   return html;
 }
 function openPairPicker(side){
@@ -821,9 +828,10 @@ function openPairPicker(side){
   var cur=pairDraft[side];
   var items=pool.map(function(c){
     var m=members.find(function(x){return x.id===c.member_id}); var mn=m?m.name:'';
-    var active=cur&&cur.id===c.id?' style="border:2px solid var(--purple)"':'';
+    var active=cur&&cur.id===c.id?' active':'';
     var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-    return `<div class="pick-item"${active} onclick="pickPairCard('${side}','${c.id}')"><div class="pick-thumb">${img}</div><div class="pick-name">${mn?mn+' · ':''}${c.name||''}</div></div>`;
+    var sn=c.series||'';
+    return `<div class="pick-item${active}" onclick="pickPairCard('${side}','${c.id}')"><div class="pick-thumb">${img}</div><div class="pick-name">${mn?mn+' · ':''}${c.name||''}</div>${sn?`<div class="pick-sub">${sn}</div>`:''}</div>`;
   }).join('');
   openModal('选择小卡',`<div class="pick-grid">${items}</div>`);
 }
@@ -863,9 +871,9 @@ function renderPairsView(){
     if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
     if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
     html+=`<div class="pair-card"><div class="pair-name"><span>${p.label||'配对'}</span><button class="pair-del" onclick="confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
-    html+=pairSlotHtml(ca,mna);
-    html+=`<div class="pair-slot" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center"><span style="font-size:20px;color:var(--pl)">💞</span></div>`;
-    html+=pairSlotHtml(cb,mnb);
+    html+=pairSlotFrame(ca,mna,'a');
+    html+=`<div class="pair-heart">💞</div>`;
+    html+=pairSlotFrame(cb,mnb,'b');
     html+='</div></div>';
   });
   html+='</div>';
