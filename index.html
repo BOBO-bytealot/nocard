@@ -202,13 +202,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <body>
 
 <nav class="nav">
-  <h1>🃏 小卡共享</h1>
+  <div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><h1>🃏 小卡共享</h1><button class="nav-btn" onclick="openNavMenu()" style="padding:4px 7px;font-size:13px" title="更多">⋯</button></div>
   <div class="nav-actions" id="navRight">
     <button class="nav-btn active" onclick="render()">📚 我的卡库</button>
+    <button class="nav-btn" onclick="goToPairs()">🔗 配对</button>
     <span class="nav-sep"></span>
     <span id="navUsers"></span>
-    <button class="nav-btn" onclick="forceRefresh()" style="background:rgba(255,255,255,.15);padding:5px 8px" title="刷新">🔄</button>
-    <button class="nav-btn" onclick="openProfilePanel()" style="background:rgba(255,255,255,.15);padding:5px 8px">⚙️</button>
   </div>
 </nav>
 
@@ -735,6 +734,7 @@ function myRecFor(cardId){
 }
 function renderLibrary(){
   if(!currentUser) return '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">👤</div><p>请先登录</p></div>';
+  if(currentView==='pairs') return renderPairsView();
   var founder=isFounder(currentUser);
   var gid=getUserGroupId();
   var filteredCards=cards.filter(function(c){ return !gid || c.group_id===gid });
@@ -752,20 +752,18 @@ function renderLibrary(){
     html+=`<div class="cortis-top"><div class="cortis-row"><span class="count">💝 我的 ${total}张 · ¥${totalPrice}</span><div class="manage-actions"><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button></div></div><div class="cortis-stats"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div><div class="stat-item"><div class="stat-num">${notIn}</div><div class="stat-label">未在手</div></div></div></div>`;
     html+=`<div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕</button></div>`;
   } else {
-    var html2=`<div class="manage-bar"><span class="count">💝 我的 ${total}张 · ¥${totalPrice} · 卡库 ${filteredCards.length}张</span><div class="manage-actions"><button class="btn-add" onclick="openAiImport()">🤖 AI 录入</button><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button>${founder?`<button class="btn-add" style="background:#fef3c7;color:#92400e" onclick="openAddCard()">+ 加卡</button>`:''}</div></div>`;
+    var html2=`<div class="manage-bar" style="flex-wrap:wrap;gap:8px"><span class="count" style="font-size:14px;font-weight:600;color:var(--text)">💝 我的卡库</span><div class="manage-actions"><button class="btn-add" onclick="openAiImport()">🤖 AI 录入</button><button class="btn-add" onclick="openMyAddCard()">+ 录入新卡</button>${founder?`<button class="btn-add" style="background:#fef3c7;color:#92400e" onclick="openAddCard()">+ 加卡</button>`:''}</div></div>`;
     html2+=`<div class="jump-nav" style="margin-bottom:10px">${filterHtml}<button class="jump-chip" onclick="statusFilter='';render();" style="opacity:${statusFilter?'1':'0.3'}">✕ 清除</button></div>`;
     html2+=`<div class="stats-bar"><div class="stat-item"><div class="stat-num">${total}</div><div class="stat-label">总共</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">¥${totalPrice}</div><div class="stat-label">总花费</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${inTr}</div><div class="stat-label">在途</div></div><div class="stat-divider"></div><div class="stat-item"><div class="stat-num">${arrived}</div><div class="stat-label">已到手</div></div></div>`;
     html+=html2;
   }
   if(!myRecs.length&&!filteredCards.length) return html+'<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">📭</div><p>卡库还是空的</p><p>点上面的按钮录入第一张卡吧</p></div>';
-  // 配对区：我的配对展示
-  if(cardPairs.length){
-    html+=renderPairSection();
-  }
+  // 配对区：独立 tab（renderPairsView）
   html+=`<div class="view-toggle"><button class="${currentView==='member'?'active':''}" onclick="switchView('member')">👤 按成员</button><button class="${currentView==='series'?'active':''}" onclick="switchView('series')">🃏 按系列</button></div>`;
   if(!filteredCards.length){ html+='<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">🔍</div><p>没有符合筛选的卡</p></div>'; return html }
   if(currentView==='member') html+=renderByMember(filteredCards,founder);
-  else html+=renderBySeries(filteredCards);
+  else if(currentView==='series') html+=renderBySeries(filteredCards);
+  else if(currentView==='pairs') html+=renderPairsView();
   if(_cardsHasMore){
     html+=`<div style="text-align:center;padding:16px"><button class="btn-add" onclick="loadMoreCards()">${ _cardsLoadingMore?'加载中...':'加载更多卡片'}</button></div>`;
   }
@@ -778,24 +776,6 @@ function pairCardIds(p){
 }
 function cardInPair(cardId){
   return cardPairs.some(function(p){ return p.card_a===cardId||p.card_b===cardId });
-}
-function renderPairSection(){
-  if(!cardPairs.length) return '';
-  var html='<div class="pair-section"><div class="pair-hd"><span class="pair-title">🔗 配对</span><button class="pair-add" onclick="openAddPair()">+ 添加配对</button></div>';
-  cardPairs.forEach(function(p){
-    var ca=cards.find(function(c){return c.id===p.card_a});
-    var cb=cards.find(function(c){return c.id===p.card_b});
-    var mna='', mnb='';
-    if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
-    if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
-    html+=`<div class="pair-card"><div class="pair-name"><span>${p.label||'配对'}</span><button class="pair-del" onclick="confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
-    html+=pairSlotHtml(ca,mna);
-    html+=`<div class="pair-slot" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center"><span style="font-size:20px;color:var(--pl)">💞</span></div>`;
-    html+=pairSlotHtml(cb,mnb);
-    html+='</div></div>';
-  });
-  html+='</div>';
-  return html;
 }
 function pairSlotHtml(c,mn){
   if(!c) return '<div class="pair-slot"><div class="pair-thumb"><span style="font-size:24px">❓</span></div><div class="pair-cap">已删除</div></div>';
@@ -829,6 +809,25 @@ async function confirmDeletePair(pairId){
   showToast('🗑️ 已删除配对');
   await refreshCurrentData();
 }
+function renderPairsView(){
+  var myPairs=cardPairs.filter(function(p){ return p.owner_id===currentUser.id });
+  if(!myPairs.length) return '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:48px">💑</div><p>还没有配对</p><p style="font-size:13px;margin-top:8px">点上方按钮创建第一对</p></div>';
+  var html='<div class="pair-section" style="margin-bottom:0"><div class="pair-hd"><span class="pair-title">🔗 我的配对 <span style="font-size:12px;color:var(--muted);font-weight:400">'+myPairs.length+'对</span></span><button class="pair-add" onclick="openAddPair()">+ 添加配对</button></div>';
+  myPairs.forEach(function(p){
+    var ca=cards.find(function(c){return c.id===p.card_a});
+    var cb=cards.find(function(c){return c.id===p.card_b});
+    var mna='', mnb='';
+    if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
+    if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
+    html+=`<div class="pair-card"><div class="pair-name"><span>${p.label||'配对'}</span><button class="pair-del" onclick="confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
+    html+=pairSlotHtml(ca,mna);
+    html+=`<div class="pair-slot" style="flex:0 0 auto;display:flex;align-items:center;justify-content:center"><span style="font-size:20px;color:var(--pl)">💞</span></div>`;
+    html+=pairSlotHtml(cb,mnb);
+    html+='</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
 
 // ═══════════════════ 交互帮助 ═══════════════════
 function scrollTo(id){ var el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}) }
@@ -837,6 +836,13 @@ function toggleAll(contId){ var ct=document.getElementById(contId); if(!ct) retu
 function openLightbox(img,member,cname,series){ document.getElementById('lbImg').src=img||''; document.getElementById('lbImg').style.display=img?'':'none'; document.getElementById('lbCaption').textContent=member+' · '+cname+(series?' ['+series+']':''); document.getElementById('lightbox').classList.remove('hidden') }
 function closeLightbox(){ document.getElementById('lightbox').classList.add('hidden') }
 function showToast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show')},2000) }
+function openNavMenu(){
+  openModal('小卡共享', `<div class="form-group"><button class="btn-main" style="width:100%;margin-bottom:8px" onclick="closeModal();forceRefresh()">🔄 刷新数据</button><button class="btn-main" style="width:100%;background:var(--tint2,#ede9fe);color:var(--purple)" onclick="closeModal();openProfilePanel()">⚙️ 设置</button></div>`);
+}
+function goToPairs(){
+  currentView='pairs';
+  render();
+}
 function openModal(title,body){ document.getElementById('modalTitle').textContent=title; document.getElementById('modalBody').innerHTML=body; document.getElementById('modal').classList.remove('hidden') }
 function closeModal(){ document.getElementById('modal').classList.add('hidden') }
 
