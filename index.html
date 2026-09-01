@@ -134,19 +134,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .pair-heart{font-size:24px;flex-shrink:0}
 .pair-composer .btn-main{margin-top:12px}
 /* 选卡网格 */
-.pick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:60vh;overflow-y:auto;padding:2px}
-.pick-item{border:1px solid var(--border);border-radius:8px;padding:4px;cursor:pointer;text-align:center;background:#fff}
-.pick-item.active{border:2px solid var(--purple);padding:3px}
-.pick-item .pick-thumb{aspect-ratio:1/1;overflow:hidden;background:#f0ebe3;border-radius:6px;display:flex;align-items:center;justify-content:center}
-.pick-item .pick-thumb img{width:100%;height:100%;object-fit:cover}
-.pick-item .pick-thumb .emoji{font-size:20px}
-.pick-item .pick-name{font-size:10px;color:var(--text);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
-.pick-item .pick-sub{font-size:9px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
-.pick-thumb{position:relative}
-.pick-check{position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:var(--purple);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;z-index:2}
-.pick-confirm{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
-.pick-confirm .pick-hint{font-size:11px;color:var(--muted)}
-.pick-confirm .btn-main{flex:0 0 auto;min-width:96px}
+.pick-filters{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px;-webkit-overflow-scrolling:touch}
+.pick-filters::-webkit-scrollbar{display:none}
+.pick-chip{flex-shrink:0;padding:4px 10px;border-radius:14px;border:1px solid var(--border);background:#fff;font-size:11px;color:var(--text);cursor:pointer;white-space:nowrap}
+.pick-chip.active{background:var(--purple);border-color:var(--purple);color:#fff;font-weight:600}
+.pick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:50vh;overflow-y:auto;padding:2px}
+.pick-item{border:1px solid var(--border);border-radius:6px;padding:3px;cursor:pointer;text-align:center;background:#fff;width:100%;box-sizing:border-box;min-width:0}
+.pick-item.active{border:2px solid var(--purple);padding:2px}
+.pick-thumb{position:relative;width:100%;aspect-ratio:3/4;overflow:hidden;background:#f0ebe3;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.pick-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pick-thumb .emoji{font-size:16px}
+.pick-check{position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:var(--purple);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;z-index:2}
+.pick-item .pick-name{font-size:9px;color:var(--text);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.pick-item .pick-sub{font-size:8px;color:var(--muted);margin-top:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.pick-confirm{display:flex;justify-content:flex-end;margin-top:8px}
+.pick-confirm .btn-main{min-width:72px;padding:6px 14px;font-size:12px}
 /* 配对区 */
 .pair-section{margin-bottom:14px}
 .pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -243,7 +245,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <nav class="nav">
   <div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><h1>🃏 小卡共享</h1><button class="nav-btn" onclick="openNavMenu()" style="padding:4px 7px;font-size:13px" title="更多">⋯</button></div>
   <div class="nav-actions" id="navRight">
-    <button class="nav-btn active" onclick="render()">📚 我的卡库</button>
+    <button class="nav-btn active" onclick="goLibrary()">📚 我的卡库</button>
     <button class="nav-btn" onclick="goToPairs()">🔗 配对</button>
     <span class="nav-sep"></span>
     <span id="navUsers"></span>
@@ -836,19 +838,56 @@ function pairComposer(){
   var html=`<div class="pair-composer"><div class="pair-composer-label">✨ 新建配对</div><input type="text" id="pairDraftLabel" placeholder="给这对小卡起个名字…" value="${pairDraft.label||''}"><div class="pair-composer-cards">${slotA}<div class="pair-heart">💞</div>${slotB}</div><button class="btn-main" style="width:100%" onclick="savePair()" ${canSave?'':'disabled style="opacity:.45"'}>确定收录</button></div>`;
   return html;
 }
+var pairPickFilter={side:null,member:null,series:null};
 function openPairPicker(side){
   var pool=myOwnedCards();
   if(!pool.length){ showToast('卡库还是空的，先录点卡吧'); return }
+  pairPickFilter={side:side,member:null,series:null};
+  renderPairPicker();
+}
+function renderPairPicker(){
+  var side=pairPickFilter.side;
+  var pool=myOwnedCards();
   var cur=pairDraft[side];
-  var items=pool.map(function(c){
+  // 成员 chips
+  var membersInPool={};
+  pool.forEach(function(c){ var k=c.member_id===null?'__team__':c.member_id; membersInPool[k]=(membersInPool[k]||0)+1 });
+  var chips='<div class="pick-filters"><button class="pick-chip'+(pairPickFilter.member===null?' active':'')+'" onclick="pairPickFilter.member=null;renderPairPicker()">全部 '+pool.length+'</button>';
+  Object.keys(membersInPool).forEach(function(k){
+    var m=k==='__team__'?null:members.find(function(x){return x.id===k});
+    var mn=k==='__team__'?'团卡':(m?m.name:k);
+    chips+=`<button class="pick-chip${pairPickFilter.member===k?' active':''}" onclick="pairPickFilter.member='${k}';renderPairPicker()">${k==='__team__'?'👥':getEmoji(mn)} ${mn} ${membersInPool[k]}</button>`;
+  });
+  chips+='</div>';
+  // 系列 chips
+  var seriesInPool={};
+  pool.forEach(function(c){ var k=c.series||'未分类'; seriesInPool[k]=(seriesInPool[k]||0)+1 });
+  chips+='<div class="pick-filters"><button class="pick-chip'+(pairPickFilter.series===null?' active':'')+'" onclick="pairPickFilter.series=null;renderPairPicker()">全部系列</button>';
+  Object.keys(seriesInPool).forEach(function(k){
+    chips+=`<button class="pick-chip${pairPickFilter.series===k?' active':''}" onclick="pairPickFilter.series='${k}';renderPairPicker()">${k} ${seriesInPool[k]}</button>`;
+  });
+  chips+='</div>';
+  // 过滤
+  var filtered=pool.filter(function(c){
+    if(pairPickFilter.member!==null){
+      var k=c.member_id===null?'__team__':c.member_id;
+      if(k!==pairPickFilter.member) return false;
+    }
+    if(pairPickFilter.series!==null){
+      var sk=c.series||'未分类';
+      if(sk!==pairPickFilter.series) return false;
+    }
+    return true;
+  });
+  var items=filtered.map(function(c){
     var m=members.find(function(x){return x.id===c.member_id}); var mn=m?m.name:'';
     var active=cur&&cur.id===c.id?' active':'';
     var img=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-    var sn=c.series||'';
     var check=cur&&cur.id===c.id?'<span class="pick-check">✓</span>':'';
     return `<div class="pick-item${active}" onclick="pickPairCard('${side}','${c.id}')"><div class="pick-thumb">${img}${check}</div><div class="pick-name">${mn?mn:'团卡'}</div><div class="pick-sub">${c.name||''}</div></div>`;
   }).join('');
-  openModal('选择小卡',`<div class="pick-grid">${items}</div><div class="pick-confirm"><span class="pick-hint">点卡片选择，可换选</span><button class="btn-main" onclick="pickConfirm('${side}')">确定</button></div>`);
+  var body=chips+`<div class="pick-grid">${items}</div><div class="pick-confirm"><button class="btn-main" onclick="pickConfirm('${side}')">确定</button></div>`;
+  openModal('选择小卡',body);
 }
 function pickConfirm(side){
   if(!pairDraft[side]){ showToast('先选一张卡'); return }
@@ -861,18 +900,7 @@ function pickPairCard(side,cid){
   if(side==='a'&&pairDraft.b&&pairDraft.b.id===cid){ showToast('两张卡不能相同'); return }
   if(side==='b'&&pairDraft.a&&pairDraft.a.id===cid){ showToast('两张卡不能相同'); return }
   pairDraft[side]=c;
-  var cur=pairDraft[side];
-  var pool=myOwnedCards();
-  var items=pool.map(function(cc){
-    var m=members.find(function(x){return x.id===cc.member_id}); var mn=m?m.name:'';
-    var active=cur&&cur.id===cc.id?' active':'';
-    var img=cc.image_url?'<img src="'+cc.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
-    var sn=cc.series||'';
-    var check=cur&&cur.id===cc.id?'<span class="pick-check">✓</span>':'';
-    return `<div class="pick-item${active}" onclick="pickPairCard('${side}','${cc.id}')"><div class="pick-thumb">${img}${check}</div><div class="pick-name">${mn?mn:'团卡'}</div><div class="pick-sub">${cc.name||''}</div></div>`;
-  }).join('');
-  var b=document.getElementById('modalBody');
-  if(b) b.innerHTML=`<div class="pick-grid">${items}</div><div class="pick-confirm"><span class="pick-hint">点卡片选择，可换选</span><button class="btn-main" onclick="pickConfirm('${side}')">确定</button></div>`;
+  renderPairPicker();
 }
 async function savePair(){
   if(!pairDraft.a||!pairDraft.b){ showToast('先把两张卡都选上'); return }
@@ -932,6 +960,10 @@ function closeLightbox(){ document.getElementById('lightbox').classList.add('hid
 function showToast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show')},2000) }
 function openNavMenu(){
   openModal('小卡共享', `<div class="form-group"><button class="btn-main" style="width:100%;margin-bottom:8px" onclick="closeModal();forceRefresh()">🔄 刷新数据</button><button class="btn-main" style="width:100%;background:var(--tint2,#ede9fe);color:var(--purple)" onclick="closeModal();openProfilePanel()">⚙️ 设置</button></div>`);
+}
+function goLibrary(){
+  currentTab='main'; currentView='member'; currentSeries=null;
+  render();
 }
 function goToPairs(){
   currentView='pairs';
