@@ -231,6 +231,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .copy-btn{width:100%;padding:10px;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:6px}
 .toggle-all{font-size:12px;color:var(--pl);cursor:pointer;display:inline-block;margin-bottom:8px}
 .hidden{display:none!important}
+.ledger-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#f5f0eb;z-index:250;display:flex;flex-direction:column}
+.ledger-bar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;background:linear-gradient(135deg,var(--pl),var(--purple));color:#fff;font-size:13px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.18)}
+.ledger-bar button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:6px 13px;border-radius:14px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.ledger-overlay iframe{flex:1;width:100%;border:0;background:#fff}
 .toast{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:400;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 .spinner{text-align:center;padding:40px;color:var(--muted)}
@@ -247,6 +251,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="nav-actions" id="navRight">
     <button class="nav-btn active" onclick="goLibrary()">📚 我的卡库</button>
     <button class="nav-btn" onclick="goToPairs()">🔗 配对</button>
+    <button class="nav-btn hidden" id="navLedger" onclick="openLedger()">💰 记账本</button>
     <span class="nav-sep"></span>
     <span id="navUsers"></span>
   </div>
@@ -262,6 +267,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <div class="toast" id="toast"></div>
 
+<div class="ledger-overlay hidden" id="ledgerOverlay">
+  <div class="ledger-bar"><span>💰 SVT 追星账本 · 仅 BOBO 可见</span><button onclick="closeLedger()">✕ 关闭</button></div>
+  <iframe id="ledgerFrame" src="about:blank" title="SVT 追星账本"></iframe>
+</div>
+
 <div class="modal-overlay hidden" id="modal"><div class="modal-panel"><div class="modal-hd"><h3 id="modalTitle"></h3><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body" id="modalBody"></div></div></div>
 
 <input type="file" id="hiddenFileInput" accept="image/*" capture="environment" class="hidden">
@@ -270,7 +280,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 // ═══════════════════ Supabase 连接 ═══════════════════
 var SUPABASE_URL='https://neolxiocucigqrrgueim.supabase.co';
 var SUPABASE_KEY='sb_publishable_WW39PvhU8H0FgEdCJk5YRg_eXN7oLIC';
-var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+var sb = null; // 遗留客户端（全站实际走下面的 REST）；CDN 挂掉时不能让它抛错打断整段脚本
+try{ if(typeof supabase!=='undefined' && supabase.createClient) sb=supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }catch(e){}
 
 // 绕过 Supabase JS 客户端 Bug，直接调 REST API
 function supaGet(table,opts){
@@ -531,12 +542,17 @@ function switchView(view){ currentView=view; currentSeries=null; render() }
 function enterSeries(sname){ currentSeries=sname; render() }
 function backToSeries(){ currentSeries=null; render() }
 
+var LEDGER_OWNER='u1783008431210'; // BOBO，记账本仅其可见
 function renderNavUsers(){
   var html='';
   if(users.length){
     html=users.map(u=>`<button class="nav-btn${u.id===(currentUser&&currentUser.id)?' active':''}" onclick="switchToUser('${u.id}')">${u.name}</button>`).join('');
   }
   document.getElementById('navUsers').innerHTML=html;
+  var allow=!!(currentUser&&currentUser.id===LEDGER_OWNER);
+  var lb=document.getElementById('navLedger');
+  if(lb) lb.classList.toggle('hidden',!allow);
+  if(!allow) closeLedger();
 }
 function render(){
   applyUserTheme();
@@ -968,6 +984,19 @@ function goLibrary(){
 function goToPairs(){
   currentView='pairs';
   render();
+}
+function openLedger(){
+  if(!currentUser||currentUser.id!==LEDGER_OWNER){ showToast('🔒 记账本仅 BOBO 可见'); return }
+  document.getElementById('ledgerFrame').src='ledger.html';
+  document.getElementById('ledgerOverlay').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+}
+function closeLedger(){
+  var o=document.getElementById('ledgerOverlay');
+  if(!o||o.classList.contains('hidden')) return;
+  o.classList.add('hidden');
+  document.getElementById('ledgerFrame').src='about:blank';
+  document.body.style.overflow='';
 }
 function openModal(title,body){ document.getElementById('modalTitle').textContent=title; document.getElementById('modalBody').innerHTML=body; document.getElementById('modal').classList.remove('hidden') }
 function closeModal(){ document.getElementById('modal').classList.add('hidden') }

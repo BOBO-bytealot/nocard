@@ -1,1 +1,4 @@
 .DS_Store
+
+# SVT 账本解锁口令（本地私有，切勿提交）
+.ledger_pass
