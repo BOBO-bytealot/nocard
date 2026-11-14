@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>小卡共享</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
@@ -241,6 +241,130 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .spinner:after{content:'';display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .label-loading{padding:10px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+<style id="responsiveSkin">
+/* ============ 响应式皮肤 2026-11-14 ============
+   原来整页被锁死在 480px：桌面只剩中间一条窄带，手机上长列表也很挤。
+   这里只做布局与视觉，不动任何业务逻辑；用户主题变量仍由后面的
+   userThemeStyles 最终覆盖，BOBO / 二丁的配色照旧。 */
+:root{
+  --bg:#f9f5f5; --border:#eadfe6; --text:#4a4055; --muted:#8b8494;
+  --brand-ink:#5b6ba3; --r:14px; --rs:10px;
+  --shadow:0 2px 10px rgba(90,70,100,.07); --shell:1200px;
+}
+html{-webkit-text-size-adjust:100%}
+body{max-width:var(--shell);padding-bottom:env(safe-area-inset-bottom);overflow-x:hidden}
+.card-item,.group-hd,.jump-chip,.series-block,.album-banner-item,.album-guide-swiper,
+.series-card,.card-grid .cg-item,.stats-bar,.cortis-top,.pair-composer,.pair-card,
+.manage-bar,.user-bar,.series-detail-hd .back{box-shadow:var(--shadow)}
+.nav h1,.nav .nav-btn{text-shadow:0 1px 2px rgba(60,45,80,.28)}
+.nav .nav-btn{background:rgba(255,255,255,.26);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.nav .nav-btn.active{background:rgba(255,255,255,.44)}
+.view-toggle button.active{color:var(--brand-ink)}
+/* 长名字不撑破网格：min-width:0 + anywhere 是防横向溢出的关键 */
+.group-hd .gi,.card-body,.series-block,.pair-card,.user-info,.user-bar,
+.series-card,.card-grid .cg-item,.pair-slot-frame{min-width:0}
+.group-hd .gn,.card-body h4,.sc-name,.cg-name,.cg-member,.pair-name .label,
+.pair-slot-name,.series-thumb-name{overflow-wrap:anywhere}
+
+/* ---------- 平板 / 桌面：铺开成多列 ---------- */
+@media(min-width:700px){
+  .nav{padding:12px 26px;padding-top:calc(12px + env(safe-area-inset-top))}
+  .nav h1{font-size:18px}
+  .nav-actions{max-width:none;overflow:visible;padding-right:0}
+  #navUsers{max-width:none;overflow:visible}
+  #navUsers .nav-btn{max-width:none}
+  .main{padding:20px 26px 48px}
+  .view-toggle{max-width:520px}
+  .jump-nav,.series-thumbs{flex-wrap:wrap;overflow:visible}
+  .group-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px;align-items:start}
+  .group-cards .card-item{margin-bottom:0}
+  .series-list{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .card-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .album-banner{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));overflow:visible}
+  .album-banner-item{width:auto}
+  .album-guide-slide{height:clamp(280px,32vw,460px)}
+  .pair-section{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-content:start}
+  .pair-section .pair-hd,.pair-section .pair-composer{grid-column:1/-1}
+  .pair-composer{width:100%;max-width:760px;justify-self:center}
+  .pair-composer-cards{gap:20px}
+  .pair-slot-frame{max-width:220px}
+  .pair-card{margin-bottom:0}
+  /* 统计条改成 4 张 KPI 卡，跟账本一致 */
+  .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+    background:transparent;box-shadow:none;padding:0;margin-bottom:18px}
+  .stats-bar .stat-divider{display:none}
+  .stats-bar .stat-item{background:var(--card);border-radius:var(--r);padding:14px 8px;box-shadow:var(--shadow)}
+  .cortis-stats{gap:8px}
+  .modal-overlay{align-items:center;padding:24px}
+  .modal-panel{max-width:620px;max-height:84vh;border-radius:18px}
+  .pick-grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));max-height:56vh}
+  .img-lightbox img{max-width:min(92%,960px)}
+  .toast{bottom:32px}
+}
+@media(min-width:1100px){
+  .main{padding:24px 34px 56px}
+  .nav{padding-left:34px;padding-right:34px}
+  .group-cards{grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+  .series-list{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+  .card-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+}
+
+/* ---------- 手机：收紧间距、放大触控区、杜绝横向溢出 ---------- */
+@media(max-width:640px){
+  /* 两行导航：第一行标题 + 用户切换（固定可见），第二行功能入口 */
+  .nav{padding:9px 10px;padding-top:calc(9px + env(safe-area-inset-top));gap:6px;flex-wrap:wrap;row-gap:7px}
+  .nav h1{font-size:15px}
+  .nav-actions{order:3;width:100%;max-width:none;overflow:visible;padding-right:0;gap:6px}
+  .nav-sep{display:none}
+  #navUsers{position:absolute;right:10px;top:calc(9px + env(safe-area-inset-top));
+    max-width:150px;justify-content:flex-end;overflow:visible}
+  #navUsers .nav-btn{max-width:76px}
+  .nav-btn{min-height:32px;padding:6px 11px}
+  .main{padding:10px 10px calc(24px + env(safe-area-inset-bottom))}
+  .view-toggle{margin-bottom:10px}
+  .view-toggle button{padding:9px 6px;font-size:13px}
+  .manage-bar,.cortis-row,.series-block .sh,.manage-actions{flex-wrap:wrap;gap:8px}
+  .stats-bar{padding:10px 4px;margin-bottom:12px}
+  .stat-num{font-size:18px}
+  .stat-label{font-size:10px}
+  .jump-nav{gap:6px}
+  .jump-chip{padding:7px 11px}
+  .group-hd{padding:11px 12px}
+  .group-hd .gn{font-size:14px}
+  .card-item{padding:10px;gap:10px;margin-bottom:8px}
+  .card-thumb{width:64px;height:64px}
+  .card-body h4{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:30px}
+  .card-item:has(.card-edit) .card-body h4{padding-right:62px}
+  .card-body .meta{font-size:11px}
+  .card-body .price-line{font-size:12px}
+  .tag{font-size:10px;padding:2px 6px}
+  .card-edit{right:38px}
+  .series-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .series-card{min-width:0;padding:11px;min-height:82px}
+  .series-card .sc-name{font-size:13.5px}
+  .series-card .sc-meta{font-size:11px}
+  .series-card .sc-arrow{right:10px}
+  .card-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .card-grid .cg-item{min-width:0;padding:6px}
+  .series-thumb-item,.series-thumb-img,.series-thumb-name{width:64px;max-width:64px}
+  .series-thumb-img{height:64px}
+  .pair-slot-frame{max-width:132px}
+  .pick-grid{grid-template-columns:repeat(4,minmax(0,1fr));max-height:52vh}
+  .album-guide-slide{height:clamp(210px,58vw,300px)}
+  .form-row{flex-wrap:wrap}
+  .form-row .form-group{min-width:140px}
+  /* 16px 防止 iOS 聚焦时自动放大页面 */
+  .form-group input,.form-group select,.form-group textarea{font-size:16px}
+  .modal-hd{padding:13px 16px}
+  .modal-body{padding:14px 16px}
+  .modal-panel{max-height:90vh}
+  .btn-main{padding:12px}
+  .invite-code{font-size:26px;letter-spacing:2px}
+  .img-lightbox img{max-width:94%;max-height:72vh}
+  .toast{bottom:calc(28px + env(safe-area-inset-bottom));max-width:88vw;
+    white-space:normal;text-align:center}
+}
 </style>
 <style id="userThemeStyles"></style>
 </head>
