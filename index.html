@@ -358,12 +358,52 @@ body{max-width:var(--shell);padding-bottom:env(safe-area-inset-bottom);overflow-
   .form-group input,.form-group select,.form-group textarea{font-size:16px}
   .modal-hd{padding:13px 16px}
   .modal-body{padding:14px 16px}
-  .modal-panel{max-height:90vh}
+  .modal-panel{max-height:90vh;max-height:90dvh}
+  .modal-body{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
   .btn-main{padding:12px}
   .invite-code{font-size:26px;letter-spacing:2px}
   .img-lightbox img{max-width:94%;max-height:72vh}
   .toast{bottom:calc(28px + env(safe-area-inset-bottom));max-width:88vw;
     white-space:normal;text-align:center}
+}
+
+/* ============ 卡面比例统一 2026-11-14 ============
+   小卡实物 55×85mm，实测卡面图比例中位 0.677；原来的 1:1 正方形 /
+   3:4 用 object-fit:cover 会把卡面上下裁掉。统一到 55:85 并改用
+   contain，任何比例的图都完整显示，留白用淡底补上。 */
+:root{--card-ratio:55/85}
+.card-thumb,.series-thumb-img,.album-banner-item .cover,.card-grid .cg-cover,
+.pair-slot-empty,.pair-slot-filled,.pick-thumb,.pair-cards .pair-slot .pair-thumb,
+.pair-cards .pair-slot .pair-empty{
+  aspect-ratio:55/85;aspect-ratio:var(--card-ratio);
+  background:var(--tint,#f7f1f5);
+}
+.card-thumb img,.series-thumb-img img,.album-banner-item .cover img,
+.card-grid .cg-cover img,.pair-slot-filled img,.pick-thumb img,
+.pair-cards .pair-slot img,.pair-cards .pair-slot .pair-thumb img{
+  object-fit:contain;border-radius:0;
+}
+/* 列表缩略图固定高、按比例定宽，行高只小幅增加 */
+.card-thumb{width:57px;height:88px}
+.card-thumb .emoji{font-size:26px}
+.series-thumb-item{width:62px}
+.series-thumb-img{width:62px;height:96px}
+.series-thumb-name{max-width:62px}
+.pair-slot-empty .plus{font-size:44px}
+.pair-cards .pair-slot .pair-empty{min-height:0}
+
+@media(min-width:700px){
+  .card-thumb{width:64px;height:99px}
+  .series-thumb-item{width:68px}
+  .series-thumb-img{width:68px;height:105px}
+  .series-thumb-name{max-width:68px}
+}
+@media(max-width:640px){
+  .card-thumb{width:52px;height:80px}
+  .card-thumb .emoji{font-size:24px}
+  .series-thumb-item,.series-thumb-name{width:54px;max-width:54px}
+  .series-thumb-img{width:54px;height:84px}
+  .pair-slot-empty .plus{font-size:36px}
 }
 </style>
 <style id="userThemeStyles"></style>
@@ -1583,6 +1623,48 @@ async function saveMyRecord(rid){
 // ═══════════════════ 全局 ═══════════════════
 document.addEventListener('click',function(e){ if(e.target.classList.contains('modal-overlay')&&e.target.id==='modal') closeModal() });
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeModal(); closeLightbox() } });
+
+// ═══════════════════ 录入防连点 ═══════════════════
+// 保存按钮在异步写入期间没禁用，慢网络/手机连点会把同一张卡写两遍（id 每次重新生成，数据库也拦不住）
+var _cardSaveBusy=false;
+function guardCardSave(fn){
+  return async function(){
+    if(_cardSaveBusy){ showToast('⏳ 正在录入，别连点'); return }
+    _cardSaveBusy=true;
+    var btns=[].slice.call(document.querySelectorAll('#modalBody .btn-main'));
+    btns.forEach(function(b){ b.disabled=true; b.style.opacity='.55' });
+    try{ return await fn.apply(this,arguments) }
+    finally{
+      _cardSaveBusy=false;
+      btns.forEach(function(b){ b.disabled=false; b.style.opacity='' })
+    }
+  };
+}
+['saveMyCard','saveMyCortisCard','saveCard','doAiSave'].forEach(function(n){
+  if(typeof window[n]==='function') window[n]=guardCardSave(window[n]);
+});
+
+// 手机虚拟键盘弹起时 100vh 不变，弹窗底部（备注/按钮）会被键盘盖住；用 visualViewport 的真实高度同步
+(function(){
+  var ov=document.getElementById('modal');
+  if(!ov||!window.visualViewport) return;
+  var vv=window.visualViewport, panel=ov.querySelector('.modal-panel');
+  function syncViewport(){
+    var h=Math.round(vv.height);
+    ov.style.top=Math.round(vv.offsetTop||0)+'px';
+    ov.style.height=h+'px';
+    if(panel) panel.style.maxHeight=window.innerWidth<=640?Math.round(h*0.9)+'px':'';
+  }
+  vv.addEventListener('resize',syncViewport);
+  vv.addEventListener('scroll',syncViewport);
+  syncViewport();
+  // 聚焦输入框时滚到可见区，避免被 iOS 上方的「上一项/下一项/完成」工具条压住
+  document.addEventListener('focusin',function(ev){
+    var t=ev.target;
+    if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)||!ov.contains(t)) return;
+    setTimeout(function(){ try{ t.scrollIntoView({block:'center',behavior:'smooth'}) }catch(e){} },300);
+  });
+})();
 
 // ═══════════════════ 启动 ═══════════════════
 (async function init(){
