@@ -172,7 +172,32 @@ def main():
     import sync_ledger as sl
     if html.count("</head>") != 1:
         sys.exit("结构异常：head 不唯一")
-    html = html.replace("</head>", sl.SKIN + "</head>", 1)
+    skin = sl.SKIN
+    # 只读镜像皮肤把记账入口全隐藏了（display:none!important），云端版要反转：
+    # 删掉那几条隐藏规则，让「新增消费 / 悬浮记一笔 / 复制 / 删除 / 状态切换」恢复可见可点。
+    skin = skin.replace("#btn-add,#fab-add,#btn-save,.savebar{display:none!important}",
+                        "/* 云端版：保留记账入口 */")
+    skin = skin.replace("[data-act='add'],[data-act='dup'],[data-act='del'],[data-act='cancel-toggle'],[data-act='add-person']{display:none!important}",
+                        "/* 云端版：保留行操作 */")
+    skin = skin.replace(".field.editable{cursor:default!important}",
+                        ".field.editable{cursor:pointer!important}")
+    skin = skin.replace(".field.editable:hover{background:transparent!important}",
+                        ".field.editable:hover{background:var(--tint,#f7f1f5)!important}")
+    skin = skin.replace(".field.editable:hover .field-value::after{content:none!important}",
+                        ".field.editable:hover .field-value::after{content:'编辑'!important;color:var(--faint,#999);font-size:11px;margin-left:10px}")
+    # savebar 在原只读皮肤里被隐藏，但里面有「＋ 新增消费」主按钮；云端版显示它（保留状态文字）
+    # 「保存」「下载 ledger.json」在云端没意义，单独隐藏；fab-add 右下角悬浮笔也恢复
+    skin += """
+<style>
+/* 云端版：隐藏本地服务专属按钮，保留记账入口 */
+#btn-save,#btn-download{display:none!important}
+.savebar{display:flex!important}
+.fab{display:flex!important}
+[data-act='add'],[data-act='dup'],[data-act='del'],[data-act='cancel-toggle']{display:inline-block!important}
+#fab-add{position:fixed;right:20px;bottom:20px;z-index:50}
+</style>
+"""
+    html = html.replace("</head>", skin + "</head>", 1)
 
     # 3) 顶部说明换成云端版
     ro_cloud = """<div class="ro-note">☁️ <b>云端账本 · 可记可改</b> · 账目存在 Supabase，

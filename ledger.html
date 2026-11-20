@@ -313,11 +313,11 @@ tbody tr.click:hover td{background:#f7f1fa}
 .ro-note code{background:rgba(124,143,196,.13);padding:1px 5px;border-radius:4px;font-size:11.5px}
 
 /* ---------- 只读镜像：隐藏写入口、去掉可编辑暗示 ---------- */
-#btn-add,#fab-add,#btn-save,.savebar{display:none!important}
-[data-act='add'],[data-act='dup'],[data-act='del'],[data-act='cancel-toggle'],[data-act='add-person']{display:none!important}
-.field.editable{cursor:default!important}
-.field.editable:hover{background:transparent!important}
-.field.editable:hover .field-value::after{content:none!important}
+/* 云端版：保留记账入口 */
+/* 云端版：保留行操作 */
+.field.editable{cursor:pointer!important}
+.field.editable:hover{background:var(--tint,#f7f1f5)!important}
+.field.editable:hover .field-value::after{content:'编辑'!important;color:var(--faint,#999);font-size:11px;margin-left:10px}
 
 /* ---------- 手机自适应（卡册本身就是 480px 手机壳，账本跟着收） ---------- */
 @media(max-width:640px){
@@ -372,6 +372,15 @@ tbody tr.click:hover td{background:#f7f1fa}
   .bar-val{width:86px;font-size:12px}
   .box{font-size:12px;padding:9px 11px}
 }
+</style>
+
+<style>
+/* 云端版：隐藏本地服务专属按钮，保留记账入口 */
+#btn-save,#btn-download{display:none!important}
+.savebar{display:flex!important}
+.fab{display:flex!important}
+[data-act='add'],[data-act='dup'],[data-act='del'],[data-act='cancel-toggle']{display:inline-block!important}
+#fab-add{position:fixed;right:20px;bottom:20px;z-index:50}
 </style>
 </head>
 <body>
