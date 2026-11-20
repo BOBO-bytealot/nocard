@@ -149,6 +149,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .pick-item .pick-sub{font-size:8px;color:var(--muted);margin-top:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
 .pick-confirm{display:flex;justify-content:flex-end;margin-top:8px}
 .pick-confirm .btn-main{min-width:72px;padding:6px 14px;font-size:12px}
+/* 配对 · 梦幻 CP 卡（预览同款，2026-11-20） */
+@keyframes cpFloat{0%,100%{transform:translateY(0) scale(1);opacity:.75}50%{transform:translateY(-5px) scale(1.18);opacity:1}}
+@keyframes cpBeat{0%,100%{transform:scale(1)}25%{transform:scale(1.2)}50%{transform:scale(1)}75%{transform:scale(1.12)}}
+.pair-section .pair-hd .pair-title.cp{color:#c2477f}
+.cp-card{background:linear-gradient(135deg,#fff3f8,#ffe4ef);border:2px solid #ffc0dc;border-radius:14px;padding:10px 10px 12px;margin-bottom:10px;position:relative;overflow:hidden;box-shadow:0 4px 14px rgba(220,110,170,.12)}
+.cp-card .cp-title{text-align:center;font-size:13px;font-weight:700;color:#c2477f;margin-bottom:3px;position:relative;cursor:pointer}
+.cp-card .cp-title .who{font-weight:400;font-size:11px;color:#b58aa0;margin-left:6px}
+.cp-card .cp-del{position:absolute;right:0;top:-1px;background:none;border:none;color:#c98aae;font-size:12px;cursor:pointer;padding:2px 6px}
+.cp-card .cp-stage{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:8px;position:relative}
+.cp-card .cp-bubble{position:absolute;font-size:13px;pointer-events:none;animation:cpFloat 2.4s ease-in-out infinite}
+.cp-card .cp-bubble.b1{top:-9px;left:9%}.cp-card .cp-bubble.b2{top:-12px;right:12%;animation-delay:.5s}
+.cp-card .cp-bubble.b3{bottom:-9px;left:16%;animation-delay:1s}.cp-card .cp-bubble.b4{bottom:-12px;right:14%;animation-delay:1.5s}
+.cp-card .cp-bubble.b5{top:44%;left:3%;animation-delay:.8s}.cp-card .cp-bubble.b6{top:40%;right:3%;animation-delay:1.8s}
+.cp-card .cp-heart{font-size:24px;flex-shrink:0;animation:cpBeat 1.8s ease-in-out infinite;filter:drop-shadow(0 2px 4px rgba(230,100,160,.35));cursor:default}
+.cp-card .cp-one{width:82px;flex-shrink:0;text-align:center;cursor:pointer}
+.cp-card .cp-one .cp-thumb{aspect-ratio:55/85;border-radius:9px;border:2px solid #fff;background:linear-gradient(155deg,#f8d3e6,#e7d9f7);box-shadow:0 3px 10px rgba(210,100,160,.22);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.cp-card .cp-one .cp-thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.cp-card .cp-one .cp-thumb .emoji{font-size:30px}
+.cp-card .cp-one .cp-thumb .cp-badge{position:absolute;bottom:5px;right:5px;font-size:11px}
+.cp-card .cp-one .cp-cap{font-size:10px;color:#a05a7d;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-card .cp-foot{text-align:center;font-size:10px;color:#b58aa0;margin-top:8px}
 /* 配对区 */
 .pair-section{margin-bottom:14px}
 .pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -764,7 +785,7 @@ function renderByMember(cardList,founder){
     return ma-mb;
   });
   var jumpHtml='<div class="jump-nav">';
-  sorted.forEach(g=>{ var m=members.find(x=>x.id===g.mid); var mn=g.mid===null?'团卡':(m?m.name:g.mid); jumpHtml+=`<button class="jump-chip" onclick="scrollTo('mem_${g.gid}_${g.mid}')">${g.mid===null?'👥':getEmoji(mn)} ${mn}<span class="badge">${g.list.length}</span></button>` });
+  sorted.forEach(g=>{ var m=members.find(x=>x.id===g.mid); var mn=g.mid===null?'团卡':(m?m.name:g.mid); jumpHtml+=`<button class="jump-chip" onclick="jumpToGroup('${g.gid}','${String(g.mid)}')">${g.mid===null?'👥':getEmoji(mn)} ${mn}<span class="badge">${g.list.length}</span></button>` });
   jumpHtml+='</div>';
   var html=jumpHtml;
   sorted.forEach(g=>{
@@ -1133,21 +1154,30 @@ async function renamePair(pairId){
 }
 function renderPairsView(){
   var myPairs=cardPairs.filter(function(p){ return p.owner_id===currentUser.id });
-  var html='<div class="pair-section" style="margin-bottom:14px"><div class="pair-hd"><span class="pair-title">✨ 新建配对</span></div>'+pairComposer()+'</div>';
-  if(!myPairs.length) return html+'<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:44px">💑</div><p>还没有配对，上面创建第一对吧</p></div>';
-  html+='<div class="pair-section"><div class="pair-hd"><span class="pair-title">🔗 我的配对 <span style="font-size:12px;color:var(--muted);font-weight:400">'+myPairs.length+'对</span></span></div>';
+  var html='<div class="pair-section" style="margin-bottom:14px"><div class="pair-hd"><span class="pair-title cp">💞 新建 CP 配对</span></div>'+pairComposer()+'</div>';
+  if(!myPairs.length) return html+'<div style="text-align:center;padding:30px;color:#b58aa0"><div style="font-size:44px">💑</div><p>还没有 CP，上面收录第一对吧</p></div>';
+  html+='<div class="pair-section"><div class="pair-hd"><span class="pair-title cp">💕 我的 CP <span style="font-size:12px;color:#b58aa0;font-weight:400">'+myPairs.length+' 对</span></span></div>';
   myPairs.forEach(function(p){
     var ca=cards.find(function(c){return c.id===p.card_a});
     var cb=cards.find(function(c){return c.id===p.card_b});
     var mna='', mnb='';
     if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
     if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
-    html+=`<div class="pair-card"><div class="pair-name" onclick="renamePair('${p.id}')"><span class="label">${p.label||'配对'}</span><button class="pair-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div><div class="pair-cards">`;
-    html+='<span class="bubble b1">💗</span><span class="bubble b2">💕</span><span class="bubble b3">💖</span><span class="bubble b4">💘</span><span class="bubble b5">💞</span><span class="bubble b6">💝</span>';
-    html+=pairSlotFrame(ca,mna,'a',true);
-    html+=`<div class="pair-heart">💞</div>`;
-    html+=pairSlotFrame(cb,mnb,'b',true);
-    html+='</div></div>';
+    function cpOne(c,mn){
+      if(!c) return '<div class="cp-one"><div class="cp-thumb">💔</div><div class="cp-cap">待补卡</div></div>';
+      var inner=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
+      var badge=cardInPair(c.id)?'<span class="cp-badge">💞</span>':'';
+      return '<div class="cp-one" onclick="openLightbox(\''+(c.image_url||'')+'\',\''+mn+'\',\''+(c.name||'')+'\',\''+(c.series||'')+'\')"><div class="cp-thumb">'+inner+badge+'</div><div class="cp-cap">'+(mn||c.name||'神秘嘉宾')+'</div></div>';
+    }
+    var who=(mna||'?')+' × '+(mnb||'?');
+    html+=`<div class="cp-card"><div class="cp-title" onclick="renamePair('${p.id}')">${p.label||'我的 CP'}<span class="who">${who}</span><button class="cp-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div>`;
+    html+='<div class="cp-stage">';
+    html+='<span class="cp-bubble b1">💗</span><span class="cp-bubble b2">💕</span><span class="cp-bubble b3">💖</span><span class="cp-bubble b4">💘</span><span class="cp-bubble b5">💞</span><span class="cp-bubble b6">💝</span>';
+    html+=cpOne(ca,mna);
+    html+='<div class="cp-heart">💞</div>';
+    html+=cpOne(cb,mnb);
+    html+='</div>';
+    html+='<div class="cp-foot">✨ 一对 CP，两张卡，锁死 ✨</div></div>';
   });
   html+='</div>';
   return html;
@@ -1155,6 +1185,18 @@ function renderPairsView(){
 
 // ═══════════════════ 交互帮助 ═══════════════════
 function scrollTo(id){ var el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}) }
+// 点成员 tag：展开该分组（若折叠）再滚过去，直接看到卡
+function jumpToGroup(gid,mid){
+  if(mid==='null') mid=null;
+  var hd=document.getElementById('mem_'+gid+'_'+mid);
+  var body=document.getElementById('cards_'+gid+'_'+mid);
+  if(hd&&body&&body.classList.contains('collapsed')){
+    body.classList.remove('collapsed');
+    hd.classList.remove('collapsed');
+    var ar=hd.querySelector('.arrow'); if(ar) ar.textContent='▼';
+  }
+  if(hd) hd.scrollIntoView({behavior:'smooth',block:'start'});
+}
 function toggleGroup(hd,cardsId){ var c=document.getElementById(cardsId); if(!c) return; var col=c.classList.toggle('collapsed'); hd.classList.toggle('collapsed',col); hd.querySelector('.arrow').textContent=col?'▶':'▼' }
 function toggleAll(contId){ var ct=document.getElementById(contId); if(!ct) return; var hs=ct.querySelectorAll('.group-hd'); var any=false; hs.forEach(h=>{ if(!h.classList.contains('collapsed')) any=true }); hs.forEach(h=>{ var cid=h.getAttribute('onclick').match(/'([^']+)'/); if(!cid) return; var cc=document.getElementById(cid[1]); if(!cc) return; if(any){ cc.classList.add('collapsed'); h.classList.add('collapsed'); h.querySelector('.arrow').textContent='▶' } else { cc.classList.remove('collapsed'); h.classList.remove('collapsed'); h.querySelector('.arrow').textContent='▼' } }) }
 function openLightbox(img,member,cname,series){ document.getElementById('lbImg').src=img||''; document.getElementById('lbImg').style.display=img?'':'none'; document.getElementById('lbCaption').textContent=member+' · '+cname+(series?' ['+series+']':''); document.getElementById('lightbox').classList.remove('hidden') }
