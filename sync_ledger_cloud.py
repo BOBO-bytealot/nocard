@@ -71,6 +71,104 @@ function supaReq(path, method, data){
 /* 云端账本始终在线（能记能存） */
 const isServed = () => true;
 
+/* ===== 一句话录入：把中文一句话解析成 record（对齐 quick_add_ledger.py） ===== */
+function parseQuickLedger(text){
+  var t = ' ' + (text||'').trim() + ' ';
+  var out = {cny:0, item:'', series:'SVT', batch:null, party:null,
+             beneficiary:'me', payer:'me', pay_status:'paid',
+             ship_status:'pending', note:null, prefix:'SVT', eta:null};
+  // 金额：最后一个 ¥/元/块 或裸数字
+  var nums = t.match(/\d+(?:\.\d+)?(?:\s*(?:元|块))?/g) || [];
+  if(nums.length){ var last=nums[nums.length-1].replace(/(元|块)/g,'').trim(); out.cny=parseFloat(last)||0; }
+  // 车位号
+  var sm = t.match(/车位\s*(\d+)/); var seat = sm ? sm[1] : null;
+  // 分类 + 前缀
+  var low = t.toLowerCase(), short = null;
+  if(/YAKUSOKU|yakusoku|场周|DC/i.test(t)){ out.batch='YAKUSOKU 场周 DC'; out.prefix='YAKU'; short='场周DC'; }
+  else if(/kkt|书签/i.test(t)){ out.batch='2027台历 kkt书签'; out.prefix='KKT'; short='kkt书签'; }
+  else if(/qq音乐|q音/i.test(t)){ out.batch='2027台历 qq音乐'; out.prefix='QQ'; short='qq音乐'; }
+  else if(/台历|日历/.test(t)){ out.batch='2027台历'; out.prefix='CAL'; short='台历'; }
+  // 人
+  var people=['婧儿','Edwin','edwin','edwina','冷锅鱼子','代购'];
+  var person=null; for(var i=0;i<people.length;i++){ if(t.indexOf(people[i])>=0){ person=people[i]; break; } }
+  var m2=t.match(/我欠([\u4e00-\u9fa5A-Za-z]{1,6})/); if(m2) person=m2[1];
+  if(/欠我|我垫付|我出的|我付的/.test(t)){
+    out.beneficiary=person||'婧儿'; out.payer='me'; out.party=person;
+    out.note=(person||'婧儿')+' owes me（我垫付）';
+  } else if(/我欠|帮我出|代付/.test(t)){
+    out.beneficiary='me'; out.payer=person||'婧儿'; out.party=person;
+    out.note='我 owe '+(person||'婧儿')+'（对方垫付）';
+  } else if(/我的|是我的/.test(t)){
+    out.beneficiary='me'; out.payer='me';
+  } else if(person){
+    out.party=person; out.payer=person; out.beneficiary='me';
+  }
+  // 状态
+  if(/到了|收到|到货|已到|arrived/.test(t)) out.ship_status='arrived';
+  if(/没付|未付|unpaid/.test(t)) out.pay_status='unpaid';
+  // 商品名
+  var name=t;
+  var drop=people.concat(['欠我','我欠','我垫付','我出的','我付的','帮我出','代付','我的','是我的',
+    '等补邮','等补货','没到货','未到货','没给我','到了','收到','到货','已付款','没付款','已付','没付','未付',
+    '2027台历','YAKUSOKU','yakusoku','场周','DC','dc','kkt','书签','qq音乐','Q音','q音','台历','日历',
+    '车位','调价','（可转）','(可转)','元','块','¥','我','的','是','收了']);
+  for(var j=0;j<drop.length;j++) name=name.split(drop[j]).join(' ');
+  name=name.replace(/\d+(?:\.\d+)?/g,' ').replace(/\s+/g,' ').trim(' ，,、');
+  if(name.length<=1) name='';
+  if(!name) name=[short, seat?('车位'+seat):null].filter(Boolean).join(' ');
+  if(!name) name=(/欠我|我欠/.test(t))?'代垫':(text||'').trim();
+  out.item=name;
+  return out;
+}
+
+/* 生成 id：取该类前缀最大值 +1 */
+function quickNextId(prefix){
+  var mx=0;
+  for(var i=0;i<L.records.length;i++){
+    var id=L.records[i].id||'';
+    if(id.indexOf(prefix+'-')===0){
+      var n=parseInt(id.slice(prefix.length+1),10); if(!isNaN(n)&&n>mx) mx=n;
+    }
+  }
+  return prefix+'-'+String(mx+1).padStart(3,'0');
+}
+
+/* 一句话录入提交：构造 record -> 直接 POST -> 刷新云端 */
+var quickAdding = false;
+async function submitQuickLedger(){
+  if(!window.__LEDGER_ALLOW__){ toast('身份不对'); return; }
+  if(quickAdding) return;
+  var inp=document.getElementById('quickInput');
+  var text=(inp&&inp.value||'').trim();
+  if(!text){ toast('先写一句话'); if(inp) inp.focus(); return; }
+  var p=parseQuickLedger(text);
+  if(!p.cny){ toast('没认出金额'); return; }
+  quickAdding=true;
+  var btn=document.getElementById('quickGo'); if(btn) btn.disabled=true;
+  try{
+    var rid=quickNextId(p.prefix);
+    var rec={
+      id:rid, series:p.series, member:null, batch:p.batch, item:p.item,
+      qty:1, unit:'个', date:null, date_basis:'记录日', recorded:TODAY,
+      currency:'CNY', amount:p.cny, fx:1, cny:p.cny,
+      channel:(p.party?'拼车':null), party:p.party, beneficiary:p.beneficiary, payer:p.payer,
+      type:'buy', pay_status:p.pay_status, ship_status:p.ship_status,
+      eta:p.eta, status:'active', breakdown:null, note:p.note
+    };
+    var row={id:rid,data:rec,series:rec.series,member:null,date:null,cny:p.cny,
+      type:'buy',status:'active',pay_status:p.pay_status,ship_status:p.ship_status,owner_id:LEDGER_OWNER_ID};
+    var res=await supaReq('ledger_records','POST',row);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    if(inp) inp.value='';
+    toast('✅ 已记 '+rec.item+' ¥'+p.cny+' · '+rid);
+    await loadCloudLedger();
+  }catch(e){
+    toast('记账失败：'+(e.message||e));
+  }finally{
+    quickAdding=false; if(btn) btn.disabled=false;
+  }
+}
+
 /* 覆盖保存：按 id diff 同步到 Supabase（新增/改/删）。
    注意：用 var 赋值覆盖 app.js 里的同名函数声明，因此本段须在 app.js 之后执行。 */
 var doSave = async function(){
@@ -202,7 +300,37 @@ def main():
     # 3) 顶部说明换成云端版
     ro_cloud = """<div class="ro-note">☁️ <b>云端账本 · 可记可改</b> · 账目存在 Supabase，
       在这个网页上新增/编辑/删除会自动同步，手机上也能记。仅 BOBO 可见。</div>"""
-    html = html.replace('<div class="wrap">', '<div class="wrap">' + ro_cloud, 1)
+    # 一句话录入条：手机上打一句话直接记，不用点表单
+    quick_ui = """
+<div class="quick-bar">
+  <div class="quick-title">⚡ 一句话记账 <span>不用填表，打完直接点记</span></div>
+  <div class="quick-row">
+    <input id="quickInput" type="text" enterkeyhint="go" autocomplete="off"
+      placeholder="例：婧儿 kkt书签 车位9 9.68 等补邮" onkeydown="if(event.key==='Enter'){submitQuickLedger()}">
+    <button id="quickGo" onclick="submitQuickLedger()">记一笔</button>
+  </div>
+  <div class="quick-tip">谁欠我/我欠谁、分类、到货状态都能写进一句话里</div>
+</div>
+"""
+    quick_css = """
+<style>
+.quick-bar{background:linear-gradient(135deg,#fdf2f8,#f3f0fe);border:1px solid #e8dcef;
+  border-radius:12px;padding:12px 14px;margin:10px 0 16px}
+.quick-title{font-size:13px;font-weight:700;color:#6b4a7a;margin-bottom:8px}
+.quick-title span{font-weight:400;font-size:11px;color:#9a8aa5;margin-left:6px}
+.quick-row{display:flex;gap:8px;align-items:stretch}
+.quick-row input{flex:1;min-width:0;border:1px solid #dcd0e8;border-radius:9px;padding:11px 12px;
+  font-size:16px;background:#fff;color:#4a4055;outline:none}
+.quick-row input:focus{border-color:#92A8D1;box-shadow:0 0 0 3px rgba(146,168,209,.18)}
+.quick-row button{flex:0 0 auto;padding:0 18px;border:none;border-radius:9px;color:#fff;
+  font-size:14px;font-weight:700;background:linear-gradient(135deg,#92A8D1,#7c8fc4);cursor:pointer}
+.quick-row button:disabled{opacity:.5;cursor:wait}
+.quick-tip{font-size:10.5px;color:#9a8aa5;margin-top:7px}
+@media(max-width:640px){.quick-title span{display:none}.quick-row button{padding:0 14px}}
+</style>
+"""
+    html = html.replace("</head>", quick_css + "</head>", 1)
+    html = html.replace('<div class="wrap">', '<div class="wrap">' + ro_cloud + quick_ui, 1)
 
     # 3b) 副标题去掉「源文件/build.py/请勿手改」等本地镜像字样
     html = html.replace('数据源 data/ledger.json · 更新于', '云端实时数据 · 更新于', 1)
