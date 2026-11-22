@@ -153,23 +153,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 @keyframes cpFloat{0%,100%{transform:translateY(0) scale(1);opacity:.75}50%{transform:translateY(-5px) scale(1.18);opacity:1}}
 @keyframes cpBeat{0%,100%{transform:scale(1)}25%{transform:scale(1.2)}50%{transform:scale(1)}75%{transform:scale(1.12)}}
 .pair-section .pair-hd .pair-title.cp{color:#c2477f}
-.cp-card{background:linear-gradient(135deg,#fff3f8,#ffe4ef);border:2px solid #ffc0dc;border-radius:14px;padding:10px 10px 12px;margin-bottom:10px;position:relative;overflow:hidden;box-shadow:0 4px 14px rgba(220,110,170,.12)}
+.cp-card{background:linear-gradient(135deg,#fff3f8,#ffe4ef);border:2px solid #ffc0dc;border-radius:14px;padding:12px 12px 12px;margin-bottom:10px;position:relative;overflow:hidden;box-shadow:0 4px 14px rgba(220,110,170,.12)}
 .cp-card .cp-title{text-align:center;font-size:13px;font-weight:700;color:#c2477f;margin-bottom:3px;position:relative;cursor:pointer}
 .cp-card .cp-title .who{font-weight:400;font-size:11px;color:#b58aa0;margin-left:6px}
 .cp-card .cp-del{position:absolute;right:0;top:-1px;background:none;border:none;color:#c98aae;font-size:12px;cursor:pointer;padding:2px 6px}
-.cp-card .cp-stage{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:8px;position:relative}
-.cp-card .cp-bubble{position:absolute;font-size:13px;pointer-events:none;animation:cpFloat 2.4s ease-in-out infinite}
-.cp-card .cp-bubble.b1{top:-9px;left:9%}.cp-card .cp-bubble.b2{top:-12px;right:12%;animation-delay:.5s}
-.cp-card .cp-bubble.b3{bottom:-9px;left:16%;animation-delay:1s}.cp-card .cp-bubble.b4{bottom:-12px;right:14%;animation-delay:1.5s}
-.cp-card .cp-bubble.b5{top:44%;left:3%;animation-delay:.8s}.cp-card .cp-bubble.b6{top:40%;right:3%;animation-delay:1.8s}
-.cp-card .cp-heart{font-size:24px;flex-shrink:0;animation:cpBeat 1.8s ease-in-out infinite;filter:drop-shadow(0 2px 4px rgba(230,100,160,.35));cursor:default}
-.cp-card .cp-one{width:82px;flex-shrink:0;text-align:center;cursor:pointer}
+.cp-card .cp-stage{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;position:relative}
+.cp-card .cp-bubble{position:absolute;font-size:14px;pointer-events:none;animation:cpFloat 2.4s ease-in-out infinite;z-index:2;filter:drop-shadow(0 1px 2px rgba(220,110,170,.3))}
+.cp-card .cp-bubble.b1{top:5px;left:19%}.cp-card .cp-bubble.b2{top:2px;right:20%;animation-delay:.5s}
+.cp-card .cp-bubble.b3{bottom:6px;left:24%;animation-delay:1s}.cp-card .cp-bubble.b4{bottom:4px;right:24%;animation-delay:1.5s}
+.cp-card .cp-bubble.b5{top:38%;left:27%;animation-delay:.8s}.cp-card .cp-bubble.b6{top:34%;right:27%;animation-delay:1.8s}
+.cp-card .cp-heart{font-size:30px;flex-shrink:0;animation:cpBeat 1.8s ease-in-out infinite;filter:drop-shadow(0 2px 4px rgba(230,100,160,.35));cursor:default}
+.cp-card .cp-one{width:132px;flex-shrink:0;text-align:center;cursor:pointer}
 .cp-card .cp-one .cp-thumb{aspect-ratio:55/85;border-radius:9px;border:2px solid #fff;background:linear-gradient(155deg,#f8d3e6,#e7d9f7);box-shadow:0 3px 10px rgba(210,100,160,.22);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .cp-card .cp-one .cp-thumb img{width:100%;height:100%;object-fit:contain;display:block}
-.cp-card .cp-one .cp-thumb .emoji{font-size:30px}
+.cp-card .cp-one .cp-thumb .emoji{font-size:40px}
 .cp-card .cp-one .cp-thumb .cp-badge{position:absolute;bottom:5px;right:5px;font-size:11px}
-.cp-card .cp-one .cp-cap{font-size:10px;color:#a05a7d;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cp-card .cp-foot{text-align:center;font-size:10px;color:#b58aa0;margin-top:8px}
 /* 配对区 */
 .pair-section{margin-bottom:14px}
 .pair-section .pair-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -1164,20 +1162,19 @@ function renderPairsView(){
     if(ca){ var ma=members.find(function(x){return x.id===ca.member_id}); mna=ma?ma.name:'' }
     if(cb){ var mb=members.find(function(x){return x.id===cb.member_id}); mnb=mb?mb.name:'' }
     function cpOne(c,mn){
-      if(!c) return '<div class="cp-one"><div class="cp-thumb">💔</div><div class="cp-cap">待补卡</div></div>';
+      if(!c) return '<div class="cp-one"><div class="cp-thumb">💔</div></div>';
       var inner=c.image_url?'<img src="'+c.image_url+'" alt="">':'<span class="emoji">'+getEmoji(mn)+'</span>';
       var badge=cardInPair(c.id)?'<span class="cp-badge">💞</span>':'';
-      return '<div class="cp-one" onclick="openLightbox(\''+(c.image_url||'')+'\',\''+mn+'\',\''+(c.name||'')+'\',\''+(c.series||'')+'\')"><div class="cp-thumb">'+inner+badge+'</div><div class="cp-cap">'+(mn||c.name||'神秘嘉宾')+'</div></div>';
+      return '<div class="cp-one" onclick="openLightbox(\''+(c.image_url||'')+'\',\''+mn+'\',\''+(c.name||'')+'\',\''+(c.series||'')+'\')"><div class="cp-thumb">'+inner+badge+'</div></div>';
     }
-    var who=(mna||'?')+' × '+(mnb||'?');
-    html+=`<div class="cp-card"><div class="cp-title" onclick="renamePair('${p.id}')">${p.label||'我的 CP'}<span class="who">${who}</span><button class="cp-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div>`;
+    html+=`<div class="cp-card"><div class="cp-title" onclick="renamePair('${p.id}')">${p.label||'我的 CP'}<button class="cp-del" onclick="event.stopPropagation();confirmDeletePair('${p.id}')">✕</button></div>`;
     html+='<div class="cp-stage">';
     html+='<span class="cp-bubble b1">💗</span><span class="cp-bubble b2">💕</span><span class="cp-bubble b3">💖</span><span class="cp-bubble b4">💘</span><span class="cp-bubble b5">💞</span><span class="cp-bubble b6">💝</span>';
     html+=cpOne(ca,mna);
     html+='<div class="cp-heart">💞</div>';
     html+=cpOne(cb,mnb);
     html+='</div>';
-    html+='<div class="cp-foot">✨ 一对 CP，两张卡，锁死 ✨</div></div>';
+    html+='</div>';
   });
   html+='</div>';
   return html;
