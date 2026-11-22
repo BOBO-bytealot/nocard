@@ -157,14 +157,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .cp-card .cp-title{text-align:center;font-size:13px;font-weight:700;color:#c2477f;margin-bottom:3px;position:relative;cursor:pointer}
 .cp-card .cp-title .who{font-weight:400;font-size:11px;color:#b58aa0;margin-left:6px}
 .cp-card .cp-del{position:absolute;right:0;top:-1px;background:none;border:none;color:#c98aae;font-size:12px;cursor:pointer;padding:2px 6px}
-.cp-card .cp-stage{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;position:relative}
-/* emoji 多多版：6 个散落都在卡片粉底空白处（左右两侧贴边，不压图）+ 图右下各 1 + 中间 1 */
-.cp-card .cp-bubble{position:absolute;font-size:15px;pointer-events:none;animation:cpFloat 2.4s ease-in-out infinite}
-.cp-card .cp-bubble.b1{top:6px;left:10px}.cp-card .cp-bubble.b2{top:6px;right:28px;animation-delay:.5s}
-.cp-card .cp-bubble.b3{bottom:6px;left:12px;animation-delay:1s}.cp-card .cp-bubble.b4{bottom:6px;right:12px;animation-delay:1.5s}
-.cp-card .cp-bubble.b5{top:38%;left:4px;animation-delay:.8s}.cp-card .cp-bubble.b6{top:34%;right:4px;animation-delay:1.8s}
-.cp-card .cp-heart{font-size:36px;flex-shrink:0;animation:cpBeat 1.8s ease-in-out infinite;filter:drop-shadow(0 2px 4px rgba(230,100,160,.35));cursor:default}
-.cp-card .cp-one{width:clamp(132px,30%,210px);flex-shrink:0;text-align:center;cursor:pointer}
+.cp-card .cp-stage{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:10px;position:relative}
+/* emoji 多多版：中间爱心留在 flex 正中间，两图往中间挪贴紧它；6 个散落往里收、都在粉底空白处不压图 */
+.cp-card .cp-bubble{position:absolute;font-size:15px;pointer-events:none;animation:cpFloat 2.4s ease-in-out infinite;z-index:2}
+.cp-card .cp-bubble.b1{top:6px;left:16px}.cp-card .cp-bubble.b2{top:6px;right:32px;animation-delay:.5s}
+.cp-card .cp-bubble.b3{bottom:6px;left:18px;animation-delay:1s}.cp-card .cp-bubble.b4{bottom:6px;right:18px;animation-delay:1.5s}
+.cp-card .cp-bubble.b5{top:38%;left:14px;animation-delay:.8s}.cp-card .cp-bubble.b6{top:34%;right:14px;animation-delay:1.8s}
+.cp-card .cp-heart{font-size:34px;flex-shrink:0;animation:cpBeat 1.8s ease-in-out infinite;filter:drop-shadow(0 2px 4px rgba(230,100,160,.45));cursor:default;pointer-events:none}
+.cp-card .cp-one{width:clamp(100px,26%,190px);flex-shrink:0;text-align:center;cursor:pointer}
 .cp-card .cp-one .cp-thumb{aspect-ratio:55/85;border-radius:9px;border:2px solid #fff;background:linear-gradient(155deg,#f8d3e6,#e7d9f7);box-shadow:0 3px 10px rgba(210,100,160,.22);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .cp-card .cp-one .cp-thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .cp-card .cp-one .cp-thumb .emoji{font-size:40px}
