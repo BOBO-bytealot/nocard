@@ -593,6 +593,9 @@ var STATUS_CLASS={'未发货':'s-waiting','在途':'s-shipping','已到手':'s-a
 // ═══════════════════ 全局状态 ═══════════════════
 var currentTab='main', currentView='member', currentSeries=null;
 var groups=[], members=[], users=[], cards=[], records=[], cardPairs=[];
+// 待整理与主卡库隔离（2026-11-24）：主 cards 只装正式卡，待整理单独按需加载，
+// 避免暂存图占满首屏分页名额、也避免首页白拉 10MB 暂存图。
+var _pendingIds={}, _pendingCards=[], _pendingImgs={};
 var pairDraft={label:'',a:null,b:null};
 var currentUser=null;
 var _formImgData='';
@@ -668,40 +671,69 @@ async function loadData(){
 }
 
 var _CARD_COLS='id,group_id,member_id,name,series,card_type,image_emoji,note,created_by,created_at';
+var _imgRenderTimer=null;
+function scheduleImgRender(){
+  // 合并重绘：图片分批到达时最多每 260ms 全量渲染一次，不再每 8 张刷一整页
+  if(_imgRenderTimer) return;
+  _imgRenderTimer=setTimeout(function(){ _imgRenderTimer=null; render() },260);
+}
 async function loadCardImages(cardIds){
   if(!cardIds||!cardIds.length) return;
-  var batchSize=8;
-  for(var i=0;i<cardIds.length;i+=batchSize){
-    var batch=cardIds.slice(i,i+batchSize);
+  var batchSize=8, batches=[];
+  for(var i=0;i<cardIds.length;i+=batchSize) batches.push(cardIds.slice(i,i+batchSize));
+  async function fetchBatch(batch){
     var url=SUPABASE_URL+'/rest/v1/cards?select=id,image_url&id=in.('+batch.join(',')+')';
     try{
       var resp=await fetch(url,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
       var data=await resp.json();
-      if(Array.isArray(data)){
-        data.forEach(function(c){
-          var card=cards.find(function(x){return x.id===c.id});
-          if(card) card.image_url=c.image_url;
-        });
-      }
+      if(Array.isArray(data)) data.forEach(function(c){
+        var card=cards.find(function(x){return x.id===c.id});
+        if(card) card.image_url=c.image_url;
+      });
     }catch(e){ console.warn('loadCardImages error',e) }
-    render();
   }
+  // 前两批（16 张，通常就是首屏可见区）先并发拉完并立刻渲染，让图尽快出现
+  var head=batches.slice(0,2);
+  await Promise.all(head.map(fetchBatch));
+  render();
+  if(batches.length<=2) return;
+  // 其余后台补齐：4 路并发 + 合并重绘，不阻塞用户操作
+  var tail=batches.slice(2), next=0;
+  async function worker(){
+    while(true){
+      var my=next++; if(my>=tail.length) break;
+      await fetchBatch(tail[my]);
+      scheduleImgRender();
+    }
+  }
+  var ws=[]; for(var w=0;w<Math.min(4,tail.length);w++) ws.push(worker());
+  await Promise.all(ws);
+  if(_imgRenderTimer){ clearTimeout(_imgRenderTimer); _imgRenderTimer=null }
+  render();
 }
 async function refreshCurrentData(){
   var uid=localStorage.getItem('kcard_user_id');
   var r1=await supaGet('users'); users=r1.data||[]; _cacheSet('users',users);
   var myGid=getUserGroupId();
-  var cUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc,id.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
-  var cResp=await fetch(cUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+  var HDR={apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};
+  // 主卡库只拉正式卡：待整理不占分页名额，也不会被首页白拉图片
+  var cUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&note=neq.pending&order=created_at.desc,id.desc&limit='+CARD_PAGE_SIZE+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
+  var cResp=await fetch(cUrl,{headers:HDR});
   var cData=await cResp.json();
   cards=Array.isArray(cData)?cData:[]; _cardsHasMore=cards.length>=CARD_PAGE_SIZE;
+  // 待整理只拉一份轻量 id 清单（用于角标计数和排除 records 补全），完整内容点开弹窗时再取
+  var pUrl=SUPABASE_URL+'/rest/v1/cards?select=id&note=eq.pending&limit=1000'+(uid?'&created_by=eq.'+encodeURIComponent(uid):'');
+  var pResp=await fetch(pUrl,{headers:HDR});
+  var pData=await pResp.json();
+  _pendingIds={}; (Array.isArray(pData)?pData:[]).forEach(function(x){ _pendingIds[x.id]=true });
+  _pendingCards=[]; // 内容缓存失效，下次打开重新拉
   var r3=uid?await supaGet('records',{eq:{user_id:uid},order:'created_at.desc'}):{data:[]}; records=r3.data||[];
   if(records.length){
     var existingIds={}; cards.forEach(function(c){ existingIds[c.id]=true });
-    var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
+    var missingIds=[]; records.forEach(function(r){ if(!existingIds[r.card_id]&&!_pendingIds[r.card_id]&&missingIds.indexOf(r.card_id)<0) missingIds.push(r.card_id) });
     if(missingIds.length){
-      var xUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&id=in.('+missingIds.map(encodeURIComponent).join(',')+')';
-      var xResp=await fetch(xUrl,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      var xUrl=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&note=neq.pending&id=in.('+missingIds.map(encodeURIComponent).join(',')+')';
+      var xResp=await fetch(xUrl,{headers:HDR});
       var xData=await xResp.json();
       if(Array.isArray(xData)) cards=cards.concat(xData);
     }
@@ -721,7 +753,7 @@ async function loadMoreCards(){
   _cardsLoadingMore=true;
   var last=cards[cards.length-1];
   var myGid=getUserGroupId();
-  var u=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&order=created_at.desc,id.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+encodeURIComponent(last.created_at)+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
+  var u=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&note=neq.pending&order=created_at.desc,id.desc&limit='+CARD_PAGE_SIZE+'&created_at=lt.'+encodeURIComponent(last.created_at)+(myGid?'&group_id=eq.'+encodeURIComponent(myGid):'');
   var r=await fetch(u,{headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
   var moreData=await r.json();
   var more=Array.isArray(moreData)?moreData:[];
@@ -805,7 +837,7 @@ function renderByMember(cardList,founder){
 function renderBySeries(cardList){
   if(currentSeries) return renderSeriesDetail(currentSeries,cardList);
   var bySeries={};
-  cardList.forEach(c=>{ var k=c.series||'未分类'; if(!bySeries[k]) bySeries[k]={name:k,list:[]}; bySeries[k].list.push(c) });
+  cardList.forEach(c=>{ var k=c.series||'未填系列'; if(!bySeries[k]) bySeries[k]={name:k,list:[]}; bySeries[k].list.push(c) });
   var sorted=Object.entries(bySeries).sort((a,b)=>b[1].list.length-a[1].list.length);
   var html='<div class="series-list">';
   sorted.forEach(([sname,data])=>{
@@ -818,7 +850,7 @@ function renderBySeries(cardList){
 }
 
 function renderSeriesDetail(sname,cardList){
-  var list=cardList.filter(function(c){ return (c.series||'未分类')===sname });
+  var list=cardList.filter(function(c){ return (c.series||'未填系列')===sname });
   window._currentSeriesCards=list;
   var gid=list.length?list[0].group_id:null;
   var gn=gid?groups.find(function(g){ return g.id===gid }):null;
@@ -1004,7 +1036,7 @@ function renderLibrary(){
   if(currentView==='pairs') return renderPairsView();
   var founder=isFounder(currentUser);
   var gid=getUserGroupId();
-  var pendingIds={}; cards.forEach(function(c){ if(c.note==='pending') pendingIds[c.id]=true });
+  var pendingIds=_pendingIds||{}; // 待整理已不在 cards 里，用独立 id 清单排除其 records
   var filteredCards=cards.filter(function(c){ return (!gid || c.group_id===gid) && !pendingIds[c.id] });
   if(statusFilter) filteredCards=filteredCards.filter(function(c){ var r=myRecFor(c.id); return r&&r.status===statusFilter });
   var myRecs=records.filter(function(r){ return r.user_id===currentUser.id && !pendingIds[r.card_id] });
@@ -1087,7 +1119,7 @@ function renderPairPicker(){
   chips+='</div>';
   // 系列 chips
   var seriesInPool={};
-  pool.forEach(function(c){ var k=c.series||'未分类'; seriesInPool[k]=(seriesInPool[k]||0)+1 });
+  pool.forEach(function(c){ var k=c.series||'未填系列'; seriesInPool[k]=(seriesInPool[k]||0)+1 });
   chips+='<div class="pick-filters"><button class="pick-chip'+(pairPickFilter.series===null?' active':'')+'" onclick="pairPickFilter.series=null;renderPairPicker()">全部系列</button>';
   Object.keys(seriesInPool).forEach(function(k){
     chips+=`<button class="pick-chip${pairPickFilter.series===k?' active':''}" onclick="pairPickFilter.series='${k}';renderPairPicker()">${k} ${seriesInPool[k]}</button>`;
@@ -1100,7 +1132,7 @@ function renderPairPicker(){
       if(k!==pairPickFilter.member) return false;
     }
     if(pairPickFilter.series!==null){
-      var sk=c.series||'未分类';
+      var sk=c.series||'未填系列';
       if(sk!==pairPickFilter.series) return false;
     }
     return true;
@@ -1833,11 +1865,44 @@ async function saveEntryToPool(parsed){
 
 // ═══════════════════ 速拍暂存 / 待整理（拍照即存，回头补信息）═══════════════════
 var _quickImgData='';
-function pendingCards(){
+function pendingCards(){ return _pendingCards||[]; }
+function pendingCount(){ return Object.keys(_pendingIds||{}).length; }
+var _pendingImgLoading=false;
+async function loadPendingCards(){
+  // 只拉元数据（不含大图），列表立刻可见
   var uid=currentUser?currentUser.id:null;
-  return cards.filter(function(c){ return c.note==='pending' && (!uid || c.created_by===uid) });
+  var HDR={apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};
+  var url=SUPABASE_URL+'/rest/v1/cards?select='+_CARD_COLS+'&note=eq.pending&order=created_at.desc&limit=1000'+(uid?'&created_by=eq.'+encodeURIComponent(uid):'');
+  var resp=await fetch(url,{headers:HDR});
+  var d=await resp.json();
+  _pendingCards=Array.isArray(d)?d:[];
+  return _pendingCards;
 }
-function pendingCount(){ return pendingCards().length; }
+async function fillPendingImages(){
+  // 后台分批并发补图，直接回填 <img>，不重绘弹窗、不阻塞列表
+  if(_pendingImgLoading) return;
+  _pendingImgLoading=true;
+  var HDR={apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};
+  var ids=_pendingCards.filter(function(c){return !_pendingImgs[c.id]}).map(function(c){return c.id}), batches=[];
+  for(var i=0;i<ids.length;i+=8) batches.push(ids.slice(i,i+8));
+  var next=0;
+  async function worker(){
+    while(true){
+      var my=next++; if(my>=batches.length) break;
+      try{
+        var r=await fetch(SUPABASE_URL+'/rest/v1/cards?select=id,image_url&id=in.('+batches[my].join(',')+')',{headers:HDR});
+        var rows=await r.json();
+        if(Array.isArray(rows)) rows.forEach(function(x){
+          _pendingImgs[x.id]=x.image_url||'';
+          var im=document.getElementById('pimg_'+x.id);
+          if(im) im.src=x.image_url||'';
+        });
+      }catch(e){ console.warn('loadPendingImages error',e) }
+    }
+  }
+  try{ var ws=[]; for(var w=0;w<Math.min(4,batches.length);w++) ws.push(worker()); await Promise.all(ws) }
+  finally{ _pendingImgLoading=false }
+}
 async function compressForPending(dataUrl){
   var out=await compressImage(dataUrl,{maxShort:900,quality:0.82});
   var q=0.74, short=900;
@@ -1881,8 +1946,14 @@ async function saveQuickShot(){
   _quickImgData=''; closeModal(); showToast('📥 已存进待整理');
   await refreshCurrentData();
 }
-function openPending(){
-  var list=pendingCards();
+var _pendingOpenSeq=0;
+async function openPending(){
+  var seq=++_pendingOpenSeq;
+  openModal('📥 待整理','<div class="pending-empty">⏳ 加载中…</div>');
+  var list=await loadPendingCards();
+  // 加载期间用户关了弹窗或打开了别的弹窗，就不要再写回内容
+  var m=document.getElementById('modal');
+  if(seq!==_pendingOpenSeq || (m&&m.classList.contains('hidden'))) return;
   var html='';
   if(!list.length){ html='<div class="pending-empty">📭 没有待整理的卡<br>点「📸 速拍暂存」拍照存进来</div>' }
   else{
@@ -1890,13 +1961,27 @@ function openPending(){
     html+=list.map(function(c){
       var rec=myRecFor(c.id);
       var meta=(rec&&rec.note?rec.note+' · ':'')+(c.created_at||'').slice(5,16).replace('T',' ');
-      return `<div class="pending-item" onclick="openPendingEdit('${c.id}')"><img src="${c.image_url||''}" alt=""><div class="pi-body"><div class="pi-name">${(c.name||'').replace(/</g,'&lt;')}</div><div class="pi-meta">${(meta||'').replace(/</g,'&lt;')}</div></div></div>`;
+      return `<div class="pending-item" onclick="openPendingEdit('${c.id}')"><img id="pimg_${c.id}" src="${_pendingImgs[c.id]||''}" alt=""><div class="pi-body"><div class="pi-name">${(c.name||'').replace(/</g,'&lt;')}</div><div class="pi-meta">${(meta||'').replace(/</g,'&lt;')}</div></div></div>`;
     }).join('');
   }
-  openModal('📥 待整理 ('+list.length+')',html);
+  var t=document.getElementById('modalTitle'); if(t) t.textContent='📥 待整理 ('+list.length+')';
+  var b=document.getElementById('modalBody'); if(b) b.innerHTML=html;
+  // 缓存里已有的图片先填上，其余后台继续补
+  Object.keys(_pendingImgs).forEach(function(id){ var im=document.getElementById('pimg_'+id); if(im&&!im.getAttribute('src')) im.src=_pendingImgs[id]||'' });
+  if(list.length) fillPendingImages();
 }
-function openPendingEdit(cardId){
-  var card=cards.find(function(c){return c.id===cardId}); if(!card) return;
+async function openPendingEdit(cardId){
+  var card=pendingCards().find(function(c){return c.id===cardId}); if(!card) return;
+  card.image_url=card.image_url||_pendingImgs[cardId]||'';
+  if(!card.image_url){
+    // 后台补图还没轮到这张：单独取一次，避免编辑弹窗里是空图
+    try{
+      var ir=await fetch(SUPABASE_URL+'/rest/v1/cards?select=image_url&id=eq.'+encodeURIComponent(cardId),
+        {headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      var irows=await ir.json();
+      if(Array.isArray(irows)&&irows[0]){ card.image_url=irows[0].image_url||''; _pendingImgs[cardId]=card.image_url }
+    }catch(e){}
+  }
   var rec=myRecFor(cardId);
   var gid=card.group_id||getUserGroupId()||'seventeen';
   var memOpts='<option value="">❓ 未知（以后再补）</option>'+members.filter(function(m){return m.group_id===gid}).map(function(m){
@@ -1919,7 +2004,7 @@ function openPendingEdit(cardId){
   openModal('✏️ 补卡面信息',html);
 }
 async function savePendingEdit(cardId){
-  var card=cards.find(function(c){return c.id===cardId}); if(!card) return;
+  var card=pendingCards().find(function(c){return c.id===cardId}); if(!card) return;
   var nameEl=document.getElementById('pendName');
   var name=nameEl?nameEl.value.trim():''; name=name||card.name;
   var mid=document.getElementById('pendMember').value;
