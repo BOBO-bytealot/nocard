@@ -634,6 +634,8 @@ const MLABEL = {SCOUPS:"崔胜澈",JEONGHAN:"尹净汉",JOSHUA:"洪知秀",JUN:"
 const mname = m => MLABEL[m] || m;
 const PAL = ["#534AB7","#D85A30","#1D9E75","#378ADD","#BA7517","#888780","#993C1D","#0F6E56","#185FA5"];
 
+/* 分摊/换算留下的长小数（如 51.5226、7.031239）在输入框里也要抹平，避免显示成无限小数 */
+const num2 = v => (v==null||v==="") ? "" : String(Math.round(Number(v)*100)/100);
 const yen  = n => "¥" + Number(n||0).toLocaleString("zh-CN",{minimumFractionDigits:2,maximumFractionDigits:2});
 const yen0 = n => "¥" + Math.round(n||0).toLocaleString("zh-CN");
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1254,10 +1256,10 @@ function addFormHTML(p){
       <input class="ed" id="f-unit" placeholder="本 / 张 / 个" value="${esc(p.unit||"")}"></div>
     <label>原币 / 金额</label><div class="pair">
       <select class="ed" id="f-currency">${copts}</select>
-      <input class="ed" id="f-amount" type="number" step="0.01" placeholder="原币金额" value="${p.amount!=null?p.amount:""}"></div>
+      <input class="ed" id="f-amount" type="number" step="0.01" placeholder="原币金额" value="${num2(p.amount)}"></div>
     <label>汇率 / 人民币</label><div class="pair">
       <input class="ed" id="f-fx" type="number" step="0.000001" placeholder="1 外币 = ? 元" value="${lf}">
-      <input class="ed" id="f-cny" type="number" step="0.01" placeholder="人民币" value="${p.cny!=null?p.cny:""}"></div>
+      <input class="ed" id="f-cny" type="number" step="0.01" placeholder="人民币" value="${num2(p.cny)}"></div>
     <div class="calc" id="f-calc"></div>
     <label>渠道</label><input class="ed" id="f-channel" placeholder="拼车 / 直购 / WVS / 代购 / 快闪" value="${esc(p.channel||"")}">
     <label>对象</label><input class="ed" id="f-party" list="people-list" placeholder="车主 / 代购名，可留空" value="${esc(p.party||"")}">
